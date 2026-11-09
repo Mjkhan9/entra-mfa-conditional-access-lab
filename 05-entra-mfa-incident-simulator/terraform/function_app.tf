@@ -11,26 +11,39 @@ resource "azurerm_storage_account" "functions" {
   tags                     = local.tags
 }
 
-# Consumption plan (pay per execution)
+# Blob container that holds the deployment package (Flex Consumption)
+resource "azurerm_storage_container" "deployments" {
+  name                  = "app-package"
+  storage_account_id    = azurerm_storage_account.functions.id
+  container_access_type = "private"
+}
+
+# Flex Consumption plan (pay per execution; Linux Consumption Y1 is legacy)
 resource "azurerm_service_plan" "main" {
   name                = "plan-${local.name_prefix}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   os_type             = "Linux"
-  sku_name            = "Y1"
+  sku_name            = "FC1"
   tags                = local.tags
 }
 
 # One function app, three functions (simulate / detect / respond) - see ../functions/function_app.py
-resource "azurerm_linux_function_app" "main" {
+resource "azurerm_function_app_flex_consumption" "main" {
   name                = "func-${local.name_prefix}-${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   service_plan_id     = azurerm_service_plan.main.id
 
-  storage_account_name       = azurerm_storage_account.functions.name
-  storage_account_access_key = azurerm_storage_account.functions.primary_access_key
-  https_only                 = true
+  storage_container_type      = "blobContainer"
+  storage_container_endpoint  = "${azurerm_storage_account.functions.primary_blob_endpoint}${azurerm_storage_container.deployments.name}"
+  storage_authentication_type = "StorageAccountConnectionString"
+  storage_access_key          = azurerm_storage_account.functions.primary_access_key
+  runtime_name                = "python"
+  runtime_version             = "3.12"
+  maximum_instance_count      = 40
+  instance_memory_in_mb       = 2048
+  https_only                  = true
 
   # System-assigned managed identity: Cosmos DB and Event Hubs are reached without any keys
   identity {
@@ -39,10 +52,6 @@ resource "azurerm_linux_function_app" "main" {
 
   site_config {
     application_insights_connection_string = azurerm_application_insights.main.connection_string
-
-    application_stack {
-      python_version = "3.12"
-    }
   }
 
   app_settings = {
@@ -58,15 +67,7 @@ resource "azurerm_linux_function_app" "main" {
 
     # Responder timer trigger
     RESPONDER_SCHEDULE = var.responder_schedule
-
-    # Build Python dependencies on the server when publishing with Core Tools
-    SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
-    ENABLE_ORYX_BUILD              = "true"
-  }
-
-  # func publish sets the package URL itself; keep Terraform from undoing the deployment
-  lifecycle {
-    ignore_changes = [app_settings["WEBSITE_RUN_FROM_PACKAGE"]]
+    # Flex Consumption builds Python dependencies remotely on publish; no build settings needed
   }
 
   tags = local.tags
@@ -78,7 +79,7 @@ resource "azurerm_linux_function_app" "main" {
 resource "azurerm_role_assignment" "eventhub_receiver" {
   scope                = azurerm_eventhub_namespace.main.id
   role_definition_name = "Azure Event Hubs Data Receiver"
-  principal_id         = azurerm_linux_function_app.main.identity[0].principal_id
+  principal_id         = azurerm_function_app_flex_consumption.main.identity[0].principal_id
 }
 
 # Read and write incidents (Cosmos DB built-in Data Contributor, data plane)
@@ -87,19 +88,19 @@ resource "azurerm_cosmosdb_sql_role_assignment" "function_app" {
   resource_group_name = azurerm_resource_group.main.name
   account_name        = azurerm_cosmosdb_account.main.name
   role_definition_id  = "${azurerm_cosmosdb_account.main.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
-  principal_id        = azurerm_linux_function_app.main.identity[0].principal_id
+  principal_id        = azurerm_function_app_flex_consumption.main.identity[0].principal_id
   scope               = azurerm_cosmosdb_account.main.id
 }
 
 # Outputs
 output "function_app_name" {
   description = "Function app name (used by func azure functionapp publish)"
-  value       = azurerm_linux_function_app.main.name
+  value       = azurerm_function_app_flex_consumption.main.name
 }
 
 output "function_app_hostname" {
   description = "Function app hostname"
-  value       = azurerm_linux_function_app.main.default_hostname
+  value       = azurerm_function_app_flex_consumption.main.default_hostname
 }
 
 output "resource_group_name" {

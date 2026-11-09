@@ -208,7 +208,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "function_errors" {
     query = <<-QUERY
       requests
       | where success == false
-      | where cloud_RoleName =~ "${azurerm_linux_function_app.main.name}"
+      | where cloud_RoleName =~ "${azurerm_function_app_flex_consumption.main.name}"
     QUERY
 
     time_aggregation_method = "Count"

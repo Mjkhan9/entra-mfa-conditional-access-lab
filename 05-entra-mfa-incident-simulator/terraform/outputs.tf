@@ -14,7 +14,7 @@ output "project_info" {
 
 output "deploy_code_command" {
   description = "Publish the functions after terraform apply (run from the functions folder)"
-  value       = "func azure functionapp publish ${azurerm_linux_function_app.main.name} --python"
+  value       = "func azure functionapp publish ${azurerm_function_app_flex_consumption.main.name} --python"
 }
 
 output "invoke_commands" {
@@ -23,24 +23,24 @@ output "invoke_commands" {
     get_function_key = <<-EOT
       KEY=$(az functionapp function keys list \
         --resource-group ${azurerm_resource_group.main.name} \
-        --name ${azurerm_linux_function_app.main.name} \
+        --name ${azurerm_function_app_flex_consumption.main.name} \
         --function-name simulate --query default -o tsv)
     EOT
 
     mfa_auth_failure = <<-EOT
-      curl -s -X POST "https://${azurerm_linux_function_app.main.default_hostname}/api/simulate?code=$KEY" \
+      curl -s -X POST "https://${azurerm_function_app_flex_consumption.main.default_hostname}/api/simulate?code=$KEY" \
         -H "Content-Type: application/json" \
         -d '{"scenario": "mfa_auth_failure", "user": "test-user"}'
     EOT
 
     smart_lockout = <<-EOT
-      curl -s -X POST "https://${azurerm_linux_function_app.main.default_hostname}/api/simulate?code=$KEY" \
+      curl -s -X POST "https://${azurerm_function_app_flex_consumption.main.default_hostname}/api/simulate?code=$KEY" \
         -H "Content-Type: application/json" \
         -d '{"scenario": "smart_lockout", "user": "test-user"}'
     EOT
 
     policy_mismatch = <<-EOT
-      curl -s -X POST "https://${azurerm_linux_function_app.main.default_hostname}/api/simulate?code=$KEY" \
+      curl -s -X POST "https://${azurerm_function_app_flex_consumption.main.default_hostname}/api/simulate?code=$KEY" \
         -H "Content-Type: application/json" \
         -d '{"scenario": "policy_mismatch", "user": "test-user"}'
     EOT
@@ -52,7 +52,7 @@ output "useful_links" {
   value = {
     workbook       = "https://portal.azure.com/#resource${azurerm_application_insights_workbook.incidents.id}/workbook"
     cosmos_data    = "https://portal.azure.com/#resource${azurerm_cosmosdb_account.main.id}/dataExplorer"
-    function_app   = "https://portal.azure.com/#resource${azurerm_linux_function_app.main.id}/appServices"
+    function_app   = "https://portal.azure.com/#resource${azurerm_function_app_flex_consumption.main.id}/appServices"
     action_group   = "https://portal.azure.com/#resource${azurerm_monitor_action_group.incidents.id}/overview"
     log_analytics  = "https://portal.azure.com/#resource${azurerm_log_analytics_workspace.main.id}/logs"
     alert_rules    = "https://portal.azure.com/#view/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/~/alertRules"
