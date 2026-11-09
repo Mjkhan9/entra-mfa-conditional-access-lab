@@ -2,200 +2,116 @@
 
 [![CI](https://github.com/Mjkhan9/entra-mfa-conditional-access-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/Mjkhan9/entra-mfa-conditional-access-lab/actions/workflows/ci.yml)
 
-Identity threat detection and Conditional Access posture for Microsoft Entra ID. Eight sign-in detections mapped to MITRE ATT&CK, a Conditional Access posture check against Microsoft's baseline, and an analyst playbook (Microsoft Graph calls and Graph PowerShell cmdlets) for every incident. Deployed with Terraform to Azure Functions, built to run at **$0/month**.
+A lab I run against my own Microsoft Entra test tenant. It does two things:
 
-**Demo dashboard:** https://mjkhan9.github.io/entra-mfa-conditional-access-lab/
+1. **Detects identity attacks in Entra sign-in logs**: password spray, MFA fatigue, legacy authentication, break-glass account use and a few others, each mapped to MITRE ATT&CK.
+2. **Checks Conditional Access**: reads the tenant's policies through Microsoft Graph and lists the gaps (no MFA for admins, legacy auth not blocked, and so on).
 
----
+Python on Azure Functions, deployed with Terraform. Demo page (static, fake data): https://mjkhan9.github.io/entra-mfa-conditional-access-lab/
 
-## What it detects
+## Detections
 
-Every detection runs over Microsoft Entra sign-in logs (`SigninLogs`): real ones pulled from Log Analytics, or synthetic attack records from the simulator. Same engine, same code path: [`functions/detections.py`](functions/detections.py).
-
-| Detection | MITRE ATT&CK | Severity | Signal | Runbook |
-|---|---|---|---|---|
-| Password spray | T1110.003 | HIGH, **CRITICAL** if a sprayed account then signs in | One IP, 5+ accounts, `50126` inside 30 min | [04](runbooks/incident-04-password-spray.md) |
-| MFA fatigue (push bombing) | T1621 | HIGH | 3+ push prompts denied / unanswered for one user in 10 min, or one fraud report (`500121`) | [05](runbooks/incident-05-mfa-fatigue.md) |
-| Smart lockout | T1110.001 | HIGH | `50053` after repeated `50126`; assisted resolution after cooldown | [02](runbooks/incident-02-smart-lockout.md) |
-| Legacy authentication sign-in | T1078.004 | HIGH | Successful sign-in over IMAP / POP / SMTP AUTH / EAS / "Other clients" (no MFA possible) | [06](runbooks/incident-06-legacy-auth.md) |
-| Admin signed in with password only | T1078.004 | HIGH | `singleFactorAuthentication` success by a holder of one of Microsoft's 14 admin roles (looked up live in Graph) | [07](runbooks/incident-07-privileged-single-factor.md) |
-| Emergency access (break-glass) account used | T1078.004 | **CRITICAL** | Any sign-in or attempt by a break-glass account | [08](runbooks/incident-08-break-glass.md) |
-| Conditional Access policy mismatch | - | MEDIUM | MFA succeeded, CA still blocked (`53003`): grant-control design error | [03](runbooks/incident-03-policy-mismatch.md) |
-| Single MFA failure | - | LOW | One `500121` not part of a fatigue burst (expired / mistyped code) | [01](runbooks/incident-01-mfa-auth-failure.md) |
-
-Signal precision choices:
-- `50074` / `50076` ("MFA required") are routine interrupts, not failures, and never raise incidents.
-- An MFA fatigue incident absorbs the individual `500121` failures for that user: one incident, not five.
-- Incident IDs are derived from the sign-in ID (or attacker IP / user plus a time bucket for burst detections), so re-running detection over overlapping windows never duplicates an incident.
-
-Every detection has a KQL hunting query in [`queries/`](queries/) with the same thresholds.
-
----
-
-## Conditional Access posture check
-
-`GET /api/posture` reads the tenant's Conditional Access policies and security defaults through Microsoft Graph (read-only) and reports the gaps an attacker would use: [`functions/ca_posture.py`](functions/ca_posture.py).
-
-| Check | Severity | Finds |
+| Detection | MITRE | Triggers on |
 |---|---|---|
-| CA-01 | CRITICAL | No MFA baseline at all (no enabled policy, security defaults off) |
-| CA-02 | HIGH | No enabled policy requires MFA for all users and all resources |
-| CA-03 | HIGH | Which of Microsoft's 14 recommended admin roles no enabled MFA policy covers (role exclusions honoured) |
-| CA-04 | HIGH | Legacy authentication not blocked (and names a block policy left in report-only) |
-| CA-05 | MEDIUM | Enabled policies that do not exclude the emergency access account (lockout risk) |
-| CA-06 | MEDIUM | "Require all" grants mixing MFA with device compliance for all users (the cause of policy mismatch incidents) |
-| CA-07 | LOW | Policies stuck in report-only |
-| CA-08 | LOW | No sign-in / user risk policy (Entra ID P2) |
-| CA-09 | LOW | Device code flow not blocked |
+| Password spray | T1110.003 | One IP, 5+ accounts failing with `50126` in 30 min. CRITICAL if one of those accounts then signs in |
+| MFA fatigue | T1621 | 3+ denied or unanswered push prompts (`500121`) for one user in 10 min, or a fraud report |
+| Smart lockout | T1110.001 | `50053` after repeated bad passwords |
+| Legacy auth sign-in | T1078.004 | Successful sign-in over IMAP, POP, SMTP AUTH, EAS or "Other clients" |
+| Admin password-only sign-in | T1078.004 | An admin account signs in with `singleFactorAuthentication` |
+| Break-glass account used | T1078.004 | Any sign-in attempt by the emergency access account (CRITICAL) |
+| CA policy mismatch | - | MFA passed but Conditional Access still blocked (`53003`) |
+| Single MFA failure | - | One `500121` that is not part of a fatigue burst |
 
-The detections and the posture check meet in the middle: CA-04 says legacy auth is not blocked, `legacy_auth_sign_in` shows who is using it; CA-05 keeps the break-glass account excluded, `break_glass_sign_in` watches it.
+The code is in [`functions/detections.py`](functions/detections.py). Each detection has a matching KQL query in [`queries/`](queries/) and a runbook in [`runbooks/`](runbooks/). The thresholds are values I picked for a small tenant, not tuned against real attack traffic.
 
----
+Things I had to work out while writing them:
+- `50074` / `50076` ("MFA required") show up on almost every normal sign-in, so they never raise an incident.
+- One push-bombing attempt kept turning into six incidents (the fatigue one plus every single failure). Now the fatigue incident absorbs the single failures for that user.
+- Incident IDs come from the sign-in ID (or IP/user plus a time bucket), so running detection twice over the same window does not create duplicates.
 
-## Response playbooks
+## Conditional Access check
 
-Every incident carries its playbook: ordered steps, each with the Microsoft Graph request and the Graph PowerShell cmdlet ([`functions/playbooks.py`](functions/playbooks.py)), for example:
+`GET /api/posture` reads the Conditional Access policies and security defaults (Graph `Policy.Read.All`, read-only) and reports nine checks, CA-01 to CA-09 in [`functions/ca_posture.py`](functions/ca_posture.py): no MFA baseline at all, no MFA policy for all users, admin roles not covered by MFA, legacy auth not blocked, break-glass account not excluded, "require all" grants that mix MFA and compliant device, policies left in report-only, no risk policy, device code flow not blocked.
 
-| Action | Microsoft Graph | Graph PowerShell |
-|---|---|---|
-| Revoke sessions | `POST /users/{id}/revokeSignInSessions` | `Revoke-MgUserSignInSession` |
-| Force password change | `PATCH /users/{id}` (`passwordProfile.forceChangePasswordNextSignIn`) | `Update-MgUser` |
-| Mark compromised (P2) | `POST /identityProtection/riskyUsers/confirmCompromised` | `Confirm-MgRiskyUserCompromised` |
-| Review MFA methods | `GET /users/{id}/authentication/methods` | `Get-MgUserAuthenticationMethod` |
-| Block a source range | `POST /identity/conditionalAccess/namedLocations` | `New-MgIdentityConditionalAccessNamedLocation` |
+My lab tenant scores 11/100: it has no Conditional Access policies and security defaults are off.
 
-**Nothing changes an identity automatically.** Revoking, resetting or blocking affects real people and stays an analyst decision (`automated: false` on every step). The only automated response is the smart lockout responder, which updates the incident after the cooldown and never touches the account.
+## Response steps
 
----
+Each incident comes with suggested next steps and the Graph request / Graph PowerShell cmdlet for each (revoke sessions, force a password change, review MFA methods, block an IP range). None of them run automatically. The only automatic action is closing a smart lockout incident after the 5-minute cooldown, and that never touches the account.
 
-## Architecture
+## How it works
 
 ```
- Microsoft Entra ID ──diagnostic settings──▶ Log Analytics (SigninLogs)
-                                                   │
-             POST /api/detect  ── pulls last N min ┘        POST /api/simulate
-                     │                                       (synthetic attacks)
-                     ▼                                              │
-               ┌────────────────────────── detections.py ◀──────────┘
-               │   8 detections · MITRE ATT&CK · playbooks
-               ▼
-        Cosmos DB (incidents) ──platform metrics──▶ Azure Monitor metric alerts ──▶ Action group (email)
-               │
-               └──▶ Application Insights ──▶ Workbook (by detection, technique, severity)
-
- GET /api/posture ──Microsoft Graph (Policy.Read.All)──▶ Conditional Access findings CA-01…CA-09
+Entra sign-in logs -> Log Analytics -> POST /api/detect -> detections.py -> Cosmos DB -> metric alert -> email
+                         POST /api/simulate (fake attack sign-ins) -^
+GET /api/posture -> Microsoft Graph -> CA-01..CA-09 findings
 ```
 
-### Identity and access model (least privilege)
+| Endpoint | What it does |
+|---|---|
+| `POST /api/simulate` `{"scenario": "password_spray"}` | Runs one fake attack (`all` runs every one) through the detections |
+| `POST /api/detect` `{"minutes": 60}` | Runs the detections over the last N minutes of real sign-ins |
+| `GET /api/posture` | Conditional Access check (`?demo=1` uses the sample policies) |
+| `POST /api/respond` | Closes smart lockout incidents past their cooldown |
 
-| Identity | Permission | Why |
-|---|---|---|
-| Function app managed identity | Microsoft Graph `Policy.Read.All` (application, read-only) | Conditional Access policies, security defaults |
-| Function app managed identity | Microsoft Graph `RoleManagement.Read.Directory` (application, read-only) | Who holds an admin role |
-| Function app managed identity | Azure RBAC `Log Analytics Reader` on the workspace | Pull `SigninLogs` |
-| Function app managed identity | Cosmos DB Built-in Data Contributor (data plane) | Read / write incidents; Cosmos keys disabled |
-| Callers | Function keys | Every endpoint is `AuthLevel.FUNCTION` |
+The function app uses a managed identity: Log Analytics Reader on the workspace, Cosmos DB data contributor (keys are disabled) and Graph `Policy.Read.All`. No secrets or connection strings in code or settings.
 
-No connection strings or client secrets in code or settings. The managed identity cannot change a user, a policy or a role.
-
----
-
-## Run it without Azure
+## Run it locally (no Azure needed)
 
 ```bash
-git clone https://github.com/Mjkhan9/entra-mfa-conditional-access-lab.git
-cd entra-mfa-conditional-access-lab/functions
-
-python simulator.py all                 # every attack scenario through the detections
+cd functions
+python simulator.py all                  # every attack scenario through the detections
 python simulator.py mfa_fatigue --playbook
-python ca_posture.py --demo             # posture check on samples/ca-policies-sample.json
-python ca_posture.py --file export.json # your tenant: Invoke-MgGraphRequest -Uri /v1.0/identity/conditionalAccess/policies -OutputType Json
-
+python ca_posture.py --demo              # posture check on samples/ca-policies-sample.json
 cd .. && pip install pytest && pytest -q tests
 ```
 
 ## Deploy
 
-Prerequisites: Azure CLI (`az login`), Terraform ≥ 1.5, Azure Functions Core Tools v4, Python 3.12. Granting the Graph permissions needs Privileged Role Administrator; exporting sign-in logs needs Microsoft Entra ID P1 and Security Administrator.
+Needs Azure CLI, Terraform 1.5+, Azure Functions Core Tools v4 and Python 3.12. Exporting sign-in logs needs Entra ID P1; granting the Graph permission needs Privileged Role Administrator.
 
 ```bash
 cd terraform
-cat > terraform.tfvars <<'EOF'
-alert_email             = "secops@contoso.com"
-break_glass_upns        = ["emergency@contoso.com"]
-break_glass_object_ids  = ["<object-id>"]
-enable_entra_log_export = true
-EOF
+# terraform.tfvars: alert_email, break_glass_upns, break_glass_object_ids,
+#                   privileged_upns, enable_entra_log_export = true
 terraform init && terraform apply
-
 cd ../functions
 func azure functionapp publish "$(terraform -chdir=../terraform output -raw function_app_name)" --python
 ```
 
-| Endpoint | Purpose |
-|---|---|
-| `POST /api/simulate` `{"scenario": "password_spray"}` | One attack scenario (`all` runs every scenario) |
-| `POST /api/detect` `{"minutes": 60}` | Detections over the last N minutes of real sign-ins |
-| `GET /api/posture` (`?demo=1` for the sample) | Conditional Access posture |
-| `POST /api/respond` | Resolve smart lockouts past their cooldown |
+## Results (2026-11-09)
 
-`terraform output invoke_commands` prints every call with the key lookup.
+- `pytest`: 37 passed.
+- `simulate all`: 8 incidents, one per detection.
+- `detect` on real sign-in logs: one HIGH incident for my own Global Admin account, 21 password-only sign-ins in a day. That's correct for this tenant (see the posture score above).
+- `posture` on the real tenant: 11/100.
+- Both metric alerts (incident created, incident resolved) fired.
 
----
+## Problems I ran into
 
-## Results
+- **No quota on the Consumption plan.** A new subscription had zero quota for Linux Consumption (Y1), so I moved the function app to Flex Consumption.
+- **It cost about $19/month doing nothing.** The first version streamed sign-ins through an Event Hub (~$11/month just for existing) and used 5 log search alert rules ($1.50 each). I switched to pulling from Log Analytics when `detect` is called and to metric alerts, which are free for the first 10 time series. It now costs $0 at lab volume, and the workspace has a 0.15 GB/day ingestion cap.
+- **The resolved alert never fired.** Cosmos DB request metrics count creates but not patch operations, so updating an incident to RESOLVED was invisible to the alert. The responder now writes a small record to a `resolutions` container and the alert watches that.
+- **The admin detection never fired on real logs.** The Graph role lookup returned an empty list in Azure without an error. I replaced it with a configured list of admin accounts.
+- **The sign-in log export is slow to start and doesn't backfill.** The first rows arrived about 40 minutes after I turned it on. Two test sign-ins I made on the break-glass account before that never reached the workspace.
+- `first` and `last` are reserved words in KQL. Took me a minute.
 
-Measured on 2026-11-09 in a lab tenant (Microsoft Entra ID with trial licences, Azure pay-as-you-go subscription):
+## Not done yet
 
-- `pytest -q tests`: 37 passed (Python 3.12).
-- All 8 KQL queries parse and type-check in Log Analytics.
-- `POST /api/simulate {"scenario": "all"}`: 8 incidents, one per detection (2 CRITICAL, 4 HIGH, 1 MEDIUM, 1 LOW), each with its MITRE technique and playbook.
-- `GET /api/posture` on the live lab tenant: score 11/100. CA-01 CRITICAL (0 Conditional Access policies, security defaults off), CA-02/03/04 HIGH (0 of 14 admin roles covered), CA-08/09 LOW. The check reports exactly the state the tenant is in.
-- Smart lockout: the responder resolved the simulated lockout once its 300-second cooldown had passed.
+- Break-glass detection has only been tested with simulated sign-ins. I still need to repeat the real test now that the export is running.
+- Detection runs when `/api/detect` is called, not on a schedule (a timer would keep the app from scaling to zero).
+- The admin account list is manual.
 
-## Cost design
-
-Built to cost nothing while idle. The first version (an event hub, a timer and log search alert rules) measured about USD 19/month, almost all fixed charges.
-
-| Component | Choice | Why it is free |
-|---|---|---|
-| Compute | Functions Flex Consumption, HTTP triggers only | Monthly free grant (250,000 executions, 100,000 GB-s); no timer or listener, so the app scales to zero |
-| Detection source | Diagnostic settings → Log Analytics, pulled by `detect` | An Event Hubs namespace bills every hour it exists; ingestion stays inside the 5 GB monthly free allowance and queries are free |
-| Ingestion guard | Workspace daily cap 0.15 GB | Caps a month at about 4.5 GB, below the free allowance |
-| Incident store | Cosmos DB serverless | Billed per request unit; a lab's traffic is a fraction of a cent |
-| Alerting | Metric alerts on Cosmos DB and Application Insights platform metrics (6 time series) | First 10 monitored time series are free; log search alerts bill per rule |
-| Notifications | Action group email | First 1,000 emails per month are free |
-
----
-
-## Project structure
+## Layout
 
 ```
-├── index.html                    # Demo dashboard (GitHub Pages)
-├── functions/
-│   ├── function_app.py           # simulate · detect · respond · posture (HTTP)
-│   ├── detections.py             # 8 detections, MITRE mapping, incident model
-│   ├── ca_posture.py             # Conditional Access posture check (CA-01…CA-09)
-│   ├── playbooks.py              # Response steps: Graph + Graph PowerShell
-│   ├── scenarios.py              # Synthetic attack sign-ins
-│   ├── simulator.py · detector.py · pipeline.py · responder.py · graph.py · common.py
-│   └── samples/ca-policies-sample.json
-├── queries/                      # KQL hunting queries, one per detection
-├── runbooks/                     # Incident runbooks 01–08
-├── tests/                        # pytest, runs offline
-└── terraform/                    # Functions, Cosmos DB, Log Analytics, alerts, workbook,
-                                  # Graph app-role grants, Entra diagnostic setting
+functions/   Azure Functions app: detections, posture check, simulator, responder
+queries/     KQL query per detection
+runbooks/    Runbook per detection
+terraform/   Function app, Cosmos DB, Log Analytics, alerts, workbook, Graph permission, sign-in log export
+tests/       pytest, runs offline
+index.html   Demo page (GitHub Pages)
 ```
-
-## What I learned
-
-- **Pivot on the right entity.** A spray is noise per account and obvious per source IP; fatigue is the opposite.
-- **A detection is only as good as what it suppresses.** `50074` is not a failure; five denied pushes are one incident.
-- **Posture and detection are two halves.** The policy gap and the sign-in that uses it should point at each other.
-- **Least privilege includes the tooling.** The detector reads Graph and logs; containment stays with a human.
-- **Cost is architecture.** Idle resources cost more than the workload; pull + HTTP triggers + metric alerts took the bill to zero.
-
----
 
 ## Author
 
@@ -203,8 +119,6 @@ Built to cost nothing while idle. The first version (an event hub, a timer and l
 IT Specialist | Microsoft Certified: Identity and Access Administrator Associate  
 University of Houston
 
-[LinkedIn](https://linkedin.com/in/mohammad-jkhan/) · [GitHub](https://github.com/Mjkhan9)
+[LinkedIn](https://linkedin.com/in/mohammad-jkhan/) | [GitHub](https://github.com/Mjkhan9)
 
-## License
-
-MIT License - Created for educational and portfolio purposes.
+MIT License

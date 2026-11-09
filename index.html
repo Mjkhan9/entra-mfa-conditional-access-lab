@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Microsoft Entra MFA &amp; Conditional Access Lab — Identity Threat Detection</title>
+    <title>Entra MFA &amp; Conditional Access Lab (demo)</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; background: #f5f5f5; color: #242424; font-size: 14px; }
@@ -83,20 +83,20 @@
 </head>
 <body>
     <div class="topbar">
-        <div class="brand">Microsoft Entra ID <span>· MFA &amp; Conditional Access Lab</span></div>
-        <div class="env">demo · synthetic sign-ins</div>
+        <div class="brand">Entra MFA &amp; Conditional Access Lab</div>
+        <div class="env">demo, fake data</div>
     </div>
 
     <div class="page-header">
         <h1>Identity threat detection</h1>
-        <p>Eight detections over Entra sign-in logs, mapped to MITRE ATT&amp;CK, with an analyst playbook for each incident, plus a Conditional Access posture check. The buttons replay the simulator's attack scenarios through the same logic the Azure Function runs (<a href="https://github.com/Mjkhan9/entra-mfa-conditional-access-lab">source</a>).</p>
+        <p>Static demo of my Entra lab. The buttons generate fake attack sign-ins and run them through the same detection rules the Azure Function uses. Click an incident to see the response steps. Code and real results: <a href="https://github.com/Mjkhan9/entra-mfa-conditional-access-lab">GitHub</a>.</p>
         <div class="pipeline-line">
-            <span class="node">Entra sign-in logs</span><span class="arrow">→</span>
-            <span class="node">Log Analytics</span><span class="arrow">→</span>
-            <span class="node">detect (Azure Function)</span><span class="arrow">→</span>
-            <span class="node">Cosmos DB incidents</span><span class="arrow">→</span>
-            <span class="node">Metric alert</span><span class="arrow">→</span>
-            <span class="node">Analyst playbook</span>
+            <span class="node">Entra sign-in logs</span><span class="arrow">-&gt;</span>
+            <span class="node">Log Analytics</span><span class="arrow">-&gt;</span>
+            <span class="node">detect (Azure Function)</span><span class="arrow">-&gt;</span>
+            <span class="node">Cosmos DB incidents</span><span class="arrow">-&gt;</span>
+            <span class="node">Metric alert</span><span class="arrow">-&gt;</span>
+            <span class="node">Response steps</span>
         </div>
     </div>
 
@@ -105,7 +105,7 @@
             <div class="stat"><div class="stat-lbl">Incidents</div><div class="stat-val" id="sTotal">0</div><div class="stat-sub">all detections</div></div>
             <div class="stat"><div class="stat-lbl">Critical</div><div class="stat-val" id="sCritical" style="color:#750b1c;">0</div><div class="stat-sub">break-glass, spray that worked</div></div>
             <div class="stat"><div class="stat-lbl">High</div><div class="stat-val" id="sHigh" style="color:#c50f1f;">0</div><div class="stat-sub">credential attacks, MFA bypass</div></div>
-            <div class="stat"><div class="stat-lbl">MITRE techniques</div><div class="stat-val" id="sTech" style="color:#5c2e91;">0</div><div class="stat-sub">distinct, this session</div></div>
+            <div class="stat"><div class="stat-lbl">MITRE techniques</div><div class="stat-val" id="sTech" style="color:#5c2e91;">0</div><div class="stat-sub">distinct</div></div>
             <div class="stat"><div class="stat-lbl">Resolved</div><div class="stat-val" id="sResolved" style="color:#0e700e;">0</div><div class="stat-sub">smart lockout responder</div></div>
         </div>
 
@@ -131,16 +131,16 @@
             <div class="card">
                 <h3>Playbook <span class="meta" id="pbMeta">functions/playbooks.py</span></h3>
                 <ol class="playbook" id="playbook"><li style="list-style:none;padding-left:0">Select an incident.</li></ol>
-                <p class="note">Every step is a recommendation. Nothing changes an identity automatically; only the smart lockout responder acts, and it updates the incident, not the account.</p>
+                <p class="note">Suggestions only. Nothing here changes an account.</p>
             </div>
         </div>
 
         <div class="lower">
             <div class="card">
-                <h3>Conditional Access posture <span class="meta">sample tenant · GET /api/posture?demo=1</span></h3>
+                <h3>Conditional Access posture <span class="meta">sample policies, GET /api/posture?demo=1</span></h3>
                 <div style="display:flex;gap:24px;align-items:center;margin-bottom:12px">
                     <div><div class="score" id="caScore">35</div><div class="stat-sub">score / 100</div></div>
-                    <div class="stat-sub">2 enabled · 1 report-only · 1 off<br>admin roles covered 8 / 14</div>
+                    <div class="stat-sub">2 enabled, 1 report-only, 1 off<br>admin roles covered 8 / 14</div>
                 </div>
                 <table><thead><tr><th>Check</th><th>Severity</th><th>Finding</th></tr></thead><tbody id="caFindings"></tbody></table>
             </div>
@@ -153,7 +153,7 @@
                         <tr><td>MFA fatigue</td><td>3+ denied / unanswered pushes for one user in 10 min (<code>500121</code>), or a fraud report</td><td>T1621</td></tr>
                         <tr><td>Smart lockout</td><td><code>50053</code> after repeated <code>50126</code></td><td>T1110.001</td></tr>
                         <tr><td>Legacy auth</td><td>Success over IMAP / POP / SMTP / EAS / Other clients</td><td>T1078.004</td></tr>
-                        <tr><td>Admin, password only</td><td><code>singleFactorAuthentication</code> success by one of the 14 admin roles</td><td>T1078.004</td></tr>
+                        <tr><td>Admin, password only</td><td><code>singleFactorAuthentication</code> success by an admin account</td><td>T1078.004</td></tr>
                         <tr><td>Break-glass used</td><td>Any sign-in or attempt by an emergency access account</td><td>T1078.004</td></tr>
                         <tr><td>CA mismatch</td><td>MFA succeeded, <code>53003</code> block</td><td>-</td></tr>
                         <tr><td>MFA failure</td><td>Single <code>500121</code> not part of a fatigue burst</td><td>-</td></tr>
@@ -162,7 +162,7 @@
             </div>
         </div>
 
-        <p class="footer">Static demo page. Accounts use the contoso.com documentation domain and addresses come from the RFC 5737 documentation ranges. The deployed function writes the same incidents to Cosmos DB.</p>
+        <p class="footer">Fake data: contoso.com accounts and documentation IP ranges.</p>
     </div>
 
     <script>
@@ -231,7 +231,7 @@
         li.innerHTML = `
             <div class="incident-header"><span class="incident-type">${s.name}</span>
               <span>${s.mitre ? `<span class="pill mitre">${s.mitre}</span> ` : ''}<span class="pill ${s.sev}">${s.sev}</span> <span class="pill open" data-status>OPEN</span></span></div>
-            <div class="incident-meta">${s.prefix}-${hex()} · ${s.user} · ${s.ip}</div>
+            <div class="incident-meta">${s.prefix}-${hex()} | ${s.user} | ${s.ip}</div>
             <div class="incident-detail">${s.detail}</div>`;
         li.onclick = () => { document.querySelectorAll('.incident').forEach(x => x.classList.remove('selected')); li.classList.add('selected'); showPlaybook(s); };
         document.getElementById('incidents').prepend(li);
