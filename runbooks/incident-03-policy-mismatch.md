@@ -1,7 +1,7 @@
 # Incident Runbook: Policy Mismatch (MFA Satisfied but Access Blocked)
 
 **Scenario:** User satisfies MFA but a Conditional Access policy blocks access  
-**Detection:** `policy_mismatch` · **Severity:** MEDIUM · **Posture check:** CA-06 finds the policies that cause it before users hit them  
+**Detection:** `policy_mismatch` | **Severity:** MEDIUM | **Posture check:** CA-06 finds the policies that cause it before users hit them  
 **Auto-Remediation:** No (admin intervention required)
 
 ---
@@ -198,49 +198,7 @@ and the next sign-in shows ConditionalAccessStatus = success.
 ## Escalation Criteria
 
 Escalate to Identity / Cloud Security team if:
-- [ ] Policy change requires CAB approval
-- [ ] Multiple users affected by same policy
-- [ ] Unclear which policy is causing the block
-- [ ] The block comes from a Microsoft-managed policy or security defaults
-
----
-
-## Post-Incident
-
-### Documentation
-
-- [ ] Record incident in Cosmos DB
-- [ ] Document which policy was incorrect
-- [ ] Note the fix applied
-- [ ] Update any IaC (Terraform `azuread_conditional_access_policy`) to prevent regression
-
-### Prevention
-
-- Manage Conditional Access policies as code (Terraform azuread provider)
-- Roll out every policy change in Report-only mode first and read the Conditional Access insights and reporting workbook
-- Keep a break-glass account excluded from all policies
-- Document MFA and device requirements per app in runbooks
-
----
-
-## Portal Evidence
-
-| Evidence | Location |
-|----------|----------|
-| Incident records with policy mismatch details | `screenshots/cosmos-incidents.png` |
-| Sign-in log Conditional Access tab showing the failing policy | `screenshots/signin-conditional-access.png` |
-
-Each policy mismatch incident in Cosmos DB includes the `detection_signal` with:
-- `failed_policies` - The policy names and the grant controls they enforced
-- `condition_evaluated` - The operator that failed (`AND` where `OR` was intended)
-- `resource` - The target app or resource
-
----
-
-## Interview Talking Point
-
-> "Policy mismatch is one of the trickiest MFA issues because the user did everything right. They completed MFA, but a grant control in Conditional Access still isn't satisfied. I've seen it with 'Require all the selected controls' where 'Require one' was intended, and with sign-in frequency forcing reauthentication. The fix is straightforward once you identify it, but the investigation requires reading the Conditional Access tab on the sign-in and understanding how grant controls combine. I use What If and Report-only mode to verify before and after the change."
-
----
-
-*Last Updated: November 2026*
+- Policy change requires CAB approval
+- Multiple users affected by same policy
+- Unclear which policy is causing the block
+- The block comes from a Microsoft-managed policy or security defaults

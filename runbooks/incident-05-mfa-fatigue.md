@@ -1,6 +1,6 @@
 # Incident Runbook: MFA Fatigue (Push Bombing)
 
-**Detection:** `mfa_fatigue` · **Severity:** HIGH · **MITRE ATT&CK:** T1621 Multi-Factor Authentication Request Generation  
+**Detection:** `mfa_fatigue` | **Severity:** HIGH | **MITRE ATT&CK:** T1621 Multi-Factor Authentication Request Generation  
 **Auto-Remediation:** No
 
 ---
@@ -23,7 +23,7 @@ The engine suppresses the LOW `mfa_auth_failure` incident for any user in a fati
 
 ## Investigation
 
-1. Where are the prompts coming from (`IPAddress`, location, app)? Not the user's usual device and city → attacker.
+1. Where are the prompts coming from (`IPAddress`, location, app)? Not the user's usual device and city -> attacker.
 2. Did any prompt get **approved** afterwards (a `ResultType` 0 with MFA from the same IP)? That is a compromise.
 3. Ask the user, through a channel other than email, whether they were signing in.
 4. Check `GET /users/{id}/authentication/methods` for a method the user did not register.
@@ -39,11 +39,3 @@ The engine suppresses the LOW `mfa_auth_failure` incident for any user in a fati
 | Confirm compromised (P2) | `POST /identityProtection/riskyUsers/confirmCompromised` | `Confirm-MgRiskyUserCompromised` |
 
 Long-term: phishing-resistant methods (passkeys, FIDO2) for high-value accounts remove push approval entirely.
-
-## Interview Talking Point
-
-> "MFA fatigue tells you the password is already known, so treating it as an MFA problem misses the point. The detection groups denied or unanswered pushes per user in a short window, folds the individual 500121s into one incident, and the response starts with a password reset and session revocation, not a re-registration."
-
----
-
-*Last Updated: November 2026*

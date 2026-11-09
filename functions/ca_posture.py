@@ -199,7 +199,7 @@ def assess(policies: Iterable[Dict[str, Any]], security_defaults_enabled: Option
         out.append(finding(
             'CA-09', 'LOW', 'Device code flow is not blocked',
             'Device code phishing lets an attacker complete sign-in on the victim\'s behalf.',
-            'Block authentication flows → device code flow for everyone who does not need it.', LEARN['managed']))
+            'Block authentication flows > device code flow for everyone who does not need it.', LEARN['managed']))
 
     out.sort(key=lambda f: SEVERITY_ORDER.index(f['severity']))
     counts = {s: sum(1 for f in out if f['severity'] == s) for s in SEVERITY_ORDER}

@@ -1,6 +1,6 @@
 # Incident Runbook: Successful Legacy Authentication
 
-**Detection:** `legacy_auth_sign_in` · **Severity:** HIGH · **MITRE ATT&CK:** T1078.004 Valid Accounts: Cloud Accounts  
+**Detection:** `legacy_auth_sign_in` | **Severity:** HIGH | **MITRE ATT&CK:** T1078.004 Valid Accounts: Cloud Accounts  
 **Auto-Remediation:** No
 
 ---
@@ -33,11 +33,3 @@ One incident per user and client app. Engine: `detect_legacy_auth()`. Hunting qu
 | Revoke sessions if the sign-in was not expected | `POST /users/{id}/revokeSignInSessions` | `Revoke-MgUserSignInSession` |
 
 The posture check reports the same gap from the policy side (CA-04), including a block policy left in report-only.
-
-## Interview Talking Point
-
-> "I treat a successful legacy sign-in as an MFA bypass, not a client compatibility issue. The detection and the posture check meet in the middle: the posture check says legacy auth is not blocked, the detection shows who is actually using it, which is the list you need before you can enforce the block safely."
-
----
-
-*Last Updated: November 2026*

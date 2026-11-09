@@ -1,7 +1,7 @@
 # Incident Runbook: Smart Lockout / Account Lockout
 
 **Scenario:** Multiple failed sign-in attempts trigger Entra smart lockout  
-**Detection:** `smart_lockout` · **Severity:** HIGH · **MITRE ATT&CK:** T1110.001 Brute Force: Password Guessing  
+**Detection:** `smart_lockout` | **Severity:** HIGH | **MITRE ATT&CK:** T1110.001 Brute Force: Password Guessing  
 **Auto-Remediation:** Yes (assisted - state update after cooldown)
 
 ---
@@ -94,10 +94,10 @@ SigninLogs
 ```
 
 Check:
-- [ ] Is the source IP in a named location (corporate range)?
-- [ ] Is the user agent / client app consistent with the user's device?
-- [ ] Geographic location reasonable?
-- [ ] Does Entra ID Protection show sign-in risk for the attempts?
+- Is the source IP in a named location (corporate range)?
+- Is the user agent / client app consistent with the user's device?
+- Geographic location reasonable?
+- Does Entra ID Protection show sign-in risk for the attempts?
 
 ### Step 3: Check for successful sign-ins after the failures
 
@@ -165,47 +165,7 @@ If you did not attempt these sign-ins, please contact IT Security immediately.
 ## Escalation Criteria
 
 Escalate to Security team if:
-- [ ] Source IP is from unexpected geography
-- [ ] Multiple users affected simultaneously (password spray pattern)
-- [ ] Entra ID Protection flags the sign-ins as risky
-- [ ] User denies making the sign-in attempts
-
----
-
-## Post-Incident
-
-### Metrics Captured
-
-| Metric | Value |
-|--------|-------|
-| Incident ID | `<from-cosmos-db>` |
-| Created At | `<timestamp>` |
-| Resolved At | `<timestamp>` |
-| Resolution Time | `<seconds>` |
-| Remediation Type | `assisted_auto` |
-
-### Workbook Update
-
-Resolution time is emitted to Application Insights (`ResolutionTimeSeconds` event); resolved incidents appear in the workbook's severity tile under "Resolved".
-
----
-
-## Portal Evidence
-
-| Evidence | Location |
-|----------|----------|
-| Incident records (including RESOLVED status) | `screenshots/cosmos-incidents.png` |
-| Action group and alert rules | `screenshots/alert-rules.png` |
-| Workbook with resolution metrics | `screenshots/workbook.png` |
-
-The Cosmos DB container shows both OPEN and RESOLVED incidents, with `resolution_time_seconds` populated for resolved smart lockout events.
-
----
-
-## Interview Talking Point
-
-> "For smart lockout, I implemented assisted remediation rather than full automation. After the cooldown period, the system updates the incident state, sends a notification, and logs the resolution time, but it doesn't touch the user object. That's intentional. Smart lockout clears on its own, and in production you'd need safeguards around blast radius and remediation loops before doing anything to accounts. I wanted to show the workflow without overclaiming capabilities."
-
----
-
-*Last Updated: November 2026*
+- Source IP is from unexpected geography
+- Multiple users affected simultaneously (password spray pattern)
+- Entra ID Protection flags the sign-ins as risky
+- User denies making the sign-in attempts

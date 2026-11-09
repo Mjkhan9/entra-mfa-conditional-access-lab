@@ -1,6 +1,6 @@
 # Incident Runbook: Emergency Access (Break-Glass) Account Used
 
-**Detection:** `break_glass_sign_in` · **Severity:** CRITICAL · **MITRE ATT&CK:** T1078.004 Valid Accounts: Cloud Accounts  
+**Detection:** `break_glass_sign_in` | **Severity:** CRITICAL | **MITRE ATT&CK:** T1078.004 Valid Accounts: Cloud Accounts  
 **Auto-Remediation:** No
 
 ---
@@ -38,11 +38,3 @@ AuditLogs
 | Confirm against the emergency procedure | `GET /auditLogs/signIns?$filter=userPrincipalName eq '{upn}'` | `Get-MgAuditLogSignIn` |
 | If unplanned: rotate the credential (or FIDO2 key) and revoke sessions | `POST /users/{id}/revokeSignInSessions` | `Revoke-MgUserSignInSession` |
 | Review changes made by the account | `GET /auditLogs/directoryAudits?$filter=initiatedBy/user/userPrincipalName eq '{upn}'` | `Get-MgAuditLogDirectoryAudit` |
-
-## Interview Talking Point
-
-> "The break-glass account is the one account Conditional Access can't protect, so the control is monitoring. The detection fires on any attempt, even a failed one, because a failed password on that account means someone is trying it. And the posture check makes sure the account stays excluded from every policy, so it still works when you need it."
-
----
-
-*Last Updated: November 2026*

@@ -1,7 +1,7 @@
 # Incident Runbook: MFA Authentication Failure
 
 **Scenario:** MFA authentication failure consistent with an expired or mistyped verification code  
-**Detection:** `mfa_auth_failure` · **Severity:** LOW (single failure, not part of an MFA fatigue burst)  
+**Detection:** `mfa_auth_failure` | **Severity:** LOW (single failure, not part of an MFA fatigue burst)  
 **Auto-Remediation:** No (user action required)
 
 > Repeated push denials or unanswered prompts for the same user are a different incident: see [MFA fatigue](incident-05-mfa-fatigue.md). The engine suppresses this LOW incident for any user already in a fatigue incident.
@@ -138,44 +138,10 @@ Remove-MgUserAuthenticationMicrosoftAuthenticatorMethod `
 # Portal equivalent: Entra admin center > Users > <user> > Authentication methods > Require re-register multifactor authentication
 ```
 
-⚠️ **Caution:** Removing a method takes away a security control. Only do this after verifying the user's identity, and prefer a Temporary Access Pass over leaving the account without strong authentication.
+**Caution:** Removing a method takes away a security control. Only do this after verifying the user's identity, and prefer a Temporary Access Pass over leaving the account without strong authentication.
 
----
-
-## Post-Incident
-
-### Documentation
-
-- [ ] Record incident in Cosmos DB via simulator
-- [ ] Note resolution time
-- [ ] Update user if recurring issue
-
-### Prevention
+## Prevention
 
 - Keep Authenticator number matching on (default) so pushes are not approved by accident
 - Consider passkeys (FIDO2) for sensitive accounts
 - Make sure users register a second method so one broken method does not lock them out
-
----
-
-## Portal Evidence
-
-Detection evidence is captured in Cosmos DB with full event context:
-
-| Evidence | Location |
-|----------|----------|
-| Incident records with detection signals | `screenshots/cosmos-incidents.png` |
-| Diagnostic setting sending SignInLogs to Log Analytics | `screenshots/diagnostic-setting-signin-logs.png` |
-| Function app processing records | `screenshots/function-app.png` |
-
-Each Cosmos DB record contains the `detection_signal` field with sign-in log details including `result_type`, `failure_reason`, `additional_details` and the per-step `authentication_details`.
-
----
-
-## Interview Talking Point
-
-> "When investigating MFA auth failures in Entra ID, I look for the specific pattern: error 500121 with the authentication requirement set to multi-factor, then the Authentication details step that says why MFA was denied. Entra doesn't log 'code expired' as such, so I read the pattern and corroborate it with the user's recent successful sign-ins. If they completed MFA minutes before, that's consistent with an expired code. The resolution is user self-service. I don't touch their authentication methods unless I have to, and if I do, a Temporary Access Pass beats leaving the account without MFA."
-
----
-
-*Last Updated: November 2026*

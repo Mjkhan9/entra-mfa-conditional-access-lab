@@ -1,6 +1,6 @@
 # Incident Runbook: Password Spray
 
-**Detection:** `password_spray` · **Severity:** HIGH, CRITICAL when a sprayed account then signs in · **MITRE ATT&CK:** T1110.003 Brute Force: Password Spraying  
+**Detection:** `password_spray` | **Severity:** HIGH, CRITICAL when a sprayed account then signs in | **MITRE ATT&CK:** T1110.003 Brute Force: Password Spraying  
 **Auto-Remediation:** No (containment is an analyst decision)
 
 ---
@@ -16,7 +16,7 @@ An attacker tries one or two common passwords against many accounts from the sam
 | `ResultType` | 50126 |
 | `IPAddress` | same source |
 | `UserPrincipalName` | 5+ distinct accounts inside 30 minutes |
-| Escalation | a `ResultType` 0 sign-in from the same IP for one of the sprayed accounts → CRITICAL |
+| Escalation | a `ResultType` 0 sign-in from the same IP for one of the sprayed accounts -> CRITICAL |
 
 Engine: `detect_password_spray()` in [`functions/detections.py`](../functions/detections.py). Hunting query: [`queries/password-spray.kql`](../queries/password-spray.kql).
 
@@ -49,11 +49,3 @@ Nothing is executed automatically: blocking an IP range or resetting accounts af
 ## Escalation
 
 Escalate immediately when the severity is CRITICAL (a sprayed account signed in), when a sprayed account holds an admin role, or when the same source appears across several days.
-
-## Interview Talking Point
-
-> "A spray looks like noise per account, so the detection pivots on the source: one IP, many accounts, bad passwords. The part that matters is the join back to successes. A spray that never worked is HIGH; a spray followed by a successful sign-in for one of the sprayed accounts is an account takeover and goes CRITICAL with that account named."
-
----
-
-*Last Updated: November 2026*
