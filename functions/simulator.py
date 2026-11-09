@@ -44,7 +44,7 @@ def handle(payload: Any) -> Dict[str, Any]:
                                             'valid_scenarios': scenarios.SCENARIOS + ['all']}}
 
     records = scenarios.build(scenario, payload.get('user'))
-    ctx = demo_context(pipeline.tenant_context(lookup_admins=False))
+    ctx = demo_context(pipeline.tenant_context())
     ctx.run_salt = uuid.uuid4().hex  # each simulation is a new set of incidents
     body = pipeline.run(records, ctx, 'simulator')
     return {'statusCode': 200, 'body': {'mode': 'simulator', 'scenario': scenario, **body}}

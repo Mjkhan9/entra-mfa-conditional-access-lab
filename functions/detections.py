@@ -292,17 +292,20 @@ def detect_legacy_auth(records: List[Dict[str, Any]], ctx: Context) -> List[Dict
 
 
 def detect_privileged_single_factor(records: List[Dict[str, Any]], ctx: Context) -> List[Dict[str, Any]]:
-    out = []
+    # one incident per admin per day, otherwise every token refresh is a new incident
+    groups = defaultdict(list)
     for r in records:
         if (result_type(r) in SUCCESS_CODES and upn(r) in ctx.privileged_upns
                 and props(r).get('authenticationRequirement') == 'singleFactorAuthentication'):
-            out.append(make_incident(
-                'privileged_single_factor', [record_id(r) or upn(r)], 'HIGH', [r],
-                f'Admin role holder {upn(r)} signed in to {props(r).get("appDisplayName", "an app")} '
-                'with a password only',
-                'Require phishing-resistant MFA for every admin role with Conditional Access; '
-                'confirm the sign-in was the admin',
-                ctx))
+            groups[(upn(r), int(event_time(r) // 86400))].append(r)
+    out = []
+    for (user, day), recs in groups.items():
+        apps = sorted({props(r).get('appDisplayName') or 'unknown app' for r in recs})
+        out.append(make_incident(
+            'privileged_single_factor', [user, day], 'HIGH', recs,
+            f'Admin {user} signed in {len(recs)} time(s) with a password only ({", ".join(apps[:3])})',
+            'Require MFA for admin roles with Conditional Access; confirm the sign-ins were the admin',
+            ctx))
     return out
 
 

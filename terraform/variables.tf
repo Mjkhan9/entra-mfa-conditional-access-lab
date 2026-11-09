@@ -43,7 +43,7 @@ variable "log_daily_cap_gb" {
 }
 
 variable "grant_graph_read" {
-  description = "Grant the managed identity Microsoft Graph Policy.Read.All and RoleManagement.Read.Directory (read-only)"
+  description = "Grant the managed identity Microsoft Graph Policy.Read.All (read-only, for the posture check)"
   type        = bool
   default     = true
 }
@@ -61,7 +61,7 @@ variable "break_glass_object_ids" {
 }
 
 variable "privileged_upns" {
-  description = "Extra UPNs treated as privileged (admin role holders are looked up from Graph automatically)"
+  description = "Admin account UPNs: a password-only sign-in by one of these raises privileged_single_factor"
   type        = list(string)
   default     = []
 }

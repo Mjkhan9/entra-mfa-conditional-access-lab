@@ -16,30 +16,11 @@ def _env_upns(name: str) -> Set[str]:
     return {u.strip().lower() for u in os.environ.get(name, '').split(',') if u.strip()}
 
 
-def tenant_context(lookup_admins: bool = True) -> detections.Context:
-    """Who counts as privileged / break-glass: app settings plus live admin role holders."""
-    privileged = _env_upns('PRIVILEGED_ACCOUNTS')
-    if lookup_admins:
-        privileged |= privileged_role_holders()
-    return detections.Context(privileged_upns=privileged, break_glass_upns=_env_upns('BREAK_GLASS_ACCOUNTS'),
+def tenant_context() -> detections.Context:
+    # admin and break-glass accounts come from app settings (set in terraform.tfvars)
+    return detections.Context(privileged_upns=_env_upns('PRIVILEGED_ACCOUNTS'),
+                              break_glass_upns=_env_upns('BREAK_GLASS_ACCOUNTS'),
                               environment=ENVIRONMENT, ttl_seconds=INCIDENT_TTL_SECONDS)
-
-
-def privileged_role_holders() -> Set[str]:
-    """UPNs holding one of the 14 admin roles (Graph, RoleManagement.Read.Directory). Empty on failure."""
-    try:
-        import ca_posture
-        import graph
-        upns = set()
-        for a in graph.get_all('/roleManagement/directory/roleAssignments?$expand=principal'):
-            if a.get('roleDefinitionId') in ca_posture.PRIVILEGED_ROLES:
-                principal = a.get('principal') or {}
-                if principal.get('userPrincipalName'):
-                    upns.add(principal['userPrincipalName'].lower())
-        return upns
-    except Exception as e:  # detection still runs; privileged_single_factor then relies on app settings
-        print(f'[WARN] Admin role lookup failed: {e}')
-        return set()
 
 
 def run(records: List[Dict[str, Any]], ctx: detections.Context, source: str) -> Dict[str, Any]:
