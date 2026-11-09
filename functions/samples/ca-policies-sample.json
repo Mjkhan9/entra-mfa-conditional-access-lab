@@ -1,0 +1,65 @@
+{
+  "description": "Sample Conditional Access export (Microsoft Graph v1.0 shape) for a partly hardened tenant. Object IDs are placeholders.",
+  "securityDefaultsEnabled": false,
+  "breakGlassObjectIds": ["00000000-0000-0000-0000-0000000000bg"],
+  "value": [
+    {
+      "id": "11111111-0000-0000-0000-000000000001",
+      "displayName": "CA001 Require MFA for admins",
+      "state": "enabled",
+      "conditions": {
+        "clientAppTypes": ["all"],
+        "applications": {"includeApplications": ["All"], "excludeApplications": []},
+        "users": {
+          "includeUsers": [],
+          "excludeUsers": ["00000000-0000-0000-0000-0000000000bg"],
+          "includeRoles": [
+            "62e90394-69f5-4237-9190-012177145e10",
+            "e8611ab8-c189-46e8-94e1-60213ab1f814",
+            "194ae4cb-b126-40b2-bd5b-6091b380977d",
+            "b1be1c3e-b65d-4f19-8427-f6fa0d97feb9",
+            "29232cdf-9323-42fd-ade2-1d097af3e4de",
+            "f28a1f50-f6e7-4571-818b-6a12f2af6b6c",
+            "fe930be7-5e62-47db-91af-98c3a49a38b1",
+            "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
+          ],
+          "excludeRoles": []
+        }
+      },
+      "grantControls": {"operator": "OR", "builtInControls": ["mfa"], "authenticationStrength": null}
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000002",
+      "displayName": "CA002 Block legacy authentication",
+      "state": "enabledForReportingButNotEnforced",
+      "conditions": {
+        "clientAppTypes": ["exchangeActiveSync", "other"],
+        "applications": {"includeApplications": ["All"]},
+        "users": {"includeUsers": ["All"], "excludeUsers": ["00000000-0000-0000-0000-0000000000bg"]}
+      },
+      "grantControls": {"operator": "OR", "builtInControls": ["block"]}
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000003",
+      "displayName": "CA003 Require compliant device for Azure management",
+      "state": "enabled",
+      "conditions": {
+        "clientAppTypes": ["all"],
+        "applications": {"includeApplications": ["797f4846-ba00-4fd7-ba43-dac1f8f63013"]},
+        "users": {"includeUsers": ["All"], "excludeUsers": []}
+      },
+      "grantControls": {"operator": "AND", "builtInControls": ["mfa", "compliantDevice"]}
+    },
+    {
+      "id": "11111111-0000-0000-0000-000000000004",
+      "displayName": "CA004 Require MFA for all users",
+      "state": "disabled",
+      "conditions": {
+        "clientAppTypes": ["all"],
+        "applications": {"includeApplications": ["All"]},
+        "users": {"includeUsers": ["All"], "excludeUsers": ["00000000-0000-0000-0000-0000000000bg"]}
+      },
+      "grantControls": {"operator": "OR", "builtInControls": ["mfa"]}
+    }
+  ]
+}

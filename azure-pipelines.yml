@@ -19,18 +19,18 @@ stages:
             displayName: 'Install Terraform'
 
           - script: |
-              cd 05-entra-mfa-incident-simulator/terraform
+              cd terraform
+              terraform fmt -check -recursive
               terraform init -backend=false
               terraform validate
-              terraform fmt -check -recursive
-            displayName: 'Terraform Init, Validate & Format'
+            displayName: 'Terraform Format, Init & Validate'
 
-  - stage: PythonLint
-    displayName: 'Function Code Quality'
+  - stage: Python
+    displayName: 'Detections and Tests'
     dependsOn: []
     jobs:
-      - job: Lint
-        displayName: 'Lint Azure Functions'
+      - job: Test
+        displayName: 'Lint, test, run offline'
         steps:
           - task: UsePythonVersion@0
             inputs:
@@ -38,25 +38,21 @@ stages:
             displayName: 'Use Python 3.12'
 
           - script: |
-              pip install flake8 pylint
-              echo "=== Function app ==="
-              flake8 05-entra-mfa-incident-simulator/functions/ --max-line-length=120 --statistics || true
-            displayName: 'Lint Function Handlers'
+              pip install pytest ruff
+              ruff check functions tests --select E,F,W --line-length 120
+              pytest -q tests
+              python functions/simulator.py all
+              python functions/ca_posture.py --demo
+            displayName: 'Lint, pytest, simulator, posture check'
 
-  - stage: IncidentDocs
-    displayName: 'Incident Runbook Audit'
+  - stage: Docs
+    displayName: 'Runbook and Query Audit'
     dependsOn: []
     jobs:
       - job: DocCheck
-        displayName: 'Verify Runbooks'
+        displayName: 'Verify runbooks and KQL'
         steps:
           - script: |
-              echo "Incident runbooks:"
-              for f in 05-entra-mfa-incident-simulator/incidents/*.md; do
-                echo "[OK] $(basename $f) - $(wc -l < $f) lines"
-              done
-              echo "KQL queries:"
-              for f in 05-entra-mfa-incident-simulator/queries/*.kql; do
-                echo "[OK] $(basename $f) - $(wc -l < $f) lines"
-              done
-            displayName: 'Audit Incident Documentation'
+              for f in runbooks/*.md; do echo "[OK] $(basename $f) - $(wc -l < $f) lines"; done
+              for f in queries/*.kql; do echo "[OK] $(basename $f) - $(wc -l < $f) lines"; done
+            displayName: 'Audit runbooks and queries'

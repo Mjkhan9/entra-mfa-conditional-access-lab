@@ -1,0 +1,21 @@
+// Log Analytics (SigninLogs) - MFA fatigue / push bombing (MITRE ATT&CK T1621)
+// Correct password, then a burst of push prompts the user denies or never answers.
+// Same thresholds as functions/detections.py: 3+ prompts for one user inside 10 minutes,
+// or any prompt the user reported as fraud.
+
+SigninLogs
+| where TimeGenerated > ago(24h)
+| where ResultType == "500121"
+| extend detail = tolower(strcat(tostring(Status.additionalDetails), " ", tostring(AuthenticationDetails)))
+| where detail has_any ("declined", "did not respond", "fraud")
+| summarize prompts = count(), ips = make_set(IPAddress), apps = make_set(AppDisplayName),
+            reported_fraud = countif(detail has "fraud"),
+            first_seen = min(TimeGenerated), last_seen = max(TimeGenerated)
+          by UserPrincipalName, bin(TimeGenerated, 10m)
+| where prompts >= 3 or reported_fraud > 0
+| order by prompts desc
+
+// Did the attacker eventually get in? Successful MFA sign-in right after the burst:
+// SigninLogs
+// | where TimeGenerated > ago(24h) and ResultType == "0" and UserPrincipalName == "<user>"
+// | project TimeGenerated, IPAddress, AppDisplayName, AuthenticationRequirement, MfaDetail

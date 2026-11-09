@@ -1,0 +1,45 @@
+// Log Analytics (SigninLogs) - Conditional Access Policy Mismatch Detection
+// Detects sign-ins blocked by Conditional Access although the user satisfied MFA
+
+// Core detection: blocked by Conditional Access with MFA satisfied
+SigninLogs
+| where TimeGenerated > ago(24h)
+| where ResultType in ("53003", "53000", "53001")
+| where ConditionalAccessStatus == "failure"
+| where AuthenticationRequirement == "multiFactorAuthentication"
+| mv-expand policy = ConditionalAccessPolicies
+| where policy.result == "failure"
+| project TimeGenerated, UserPrincipalName, AppDisplayName, ResourceDisplayName, ResultType, ResultDescription,
+          Policy = tostring(policy.displayName), GrantControls = tostring(policy.enforcedGrantControls)
+| order by TimeGenerated desc
+| take 50
+
+// Breakdown by policy and app (to identify the problematic policy)
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where ResultType in ("53003", "53000", "53001")
+// | where AuthenticationRequirement == "multiFactorAuthentication"
+// | mv-expand policy = ConditionalAccessPolicies
+// | where policy.result == "failure"
+// | summarize denials = count() by Policy = tostring(policy.displayName), AppDisplayName
+// | order by denials desc
+
+// User-specific investigation
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where UserPrincipalName == "<specific-user>"
+// | where ConditionalAccessStatus == "failure"
+// | project TimeGenerated, AppDisplayName, ResultType, ResultDescription,
+//           AuthenticationRequirement, AuthenticationDetails, ConditionalAccessPolicies, DeviceDetail
+// | order by TimeGenerated desc
+// | take 20
+
+// Confirm the MFA step succeeded on the blocked sign-ins
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where ResultType in ("53003", "53000", "53001")
+// | mv-expand step = parse_json(AuthenticationDetails)
+// | where step.authenticationStepRequirement == "Multi-factor authentication"
+// | project TimeGenerated, UserPrincipalName, Method = tostring(step.authenticationMethod),
+//           Succeeded = tobool(step.succeeded), Detail = tostring(step.authenticationStepResultDetail)
+// | order by TimeGenerated desc

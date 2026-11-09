@@ -1,0 +1,12 @@
+// Log Analytics (SigninLogs) - Successful legacy authentication (MITRE ATT&CK T1078.004)
+// Legacy protocols (IMAP, POP, SMTP AUTH, Exchange ActiveSync basic, "Other clients") cannot do MFA,
+// so a successful legacy sign-in is an MFA bypass. Run before enforcing a Block legacy authentication
+// policy to find the clients that still depend on it.
+
+SigninLogs
+| where TimeGenerated > ago(7d)
+| where ResultType == "0"
+| where ClientAppUsed !in ("Browser", "Mobile Apps and Desktop clients")
+| summarize sign_ins = count(), last_seen = max(TimeGenerated), ips = make_set(IPAddress, 20)
+          by UserPrincipalName, ClientAppUsed, AppDisplayName
+| order by sign_ins desc

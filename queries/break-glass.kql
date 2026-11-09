@@ -1,0 +1,11 @@
+// Log Analytics (SigninLogs) - Emergency access (break-glass) account activity (MITRE ATT&CK T1078.004)
+// Any sign-in or attempt by an emergency access account is investigated: these accounts are excluded
+// from Conditional Access by design and are never used day to day. Microsoft recommends alerting on them.
+
+let break_glass = dynamic(["emergency@contoso.com"]);   // replace with your emergency access UPNs
+SigninLogs
+| where TimeGenerated > ago(30d)
+| where UserPrincipalName in~ (break_glass)
+| project TimeGenerated, UserPrincipalName, ResultType, ResultDescription, IPAddress, AppDisplayName,
+          ClientAppUsed, Location = tostring(LocationDetails.countryOrRegion), AuthenticationDetails
+| order by TimeGenerated desc

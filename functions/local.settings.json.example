@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "COSMOS_ENDPOINT": "https://<cosmos-account>.documents.azure.com:443/",
+    "COSMOS_DATABASE": "incidents-db",
+    "COSMOS_CONTAINER": "incidents",
+    "INCIDENT_TTL_DAYS": "7",
+    "ENVIRONMENT": "dev",
+    "LOG_ANALYTICS_WORKSPACE_ID": "<workspace-customer-id-guid>"
+  }
+}

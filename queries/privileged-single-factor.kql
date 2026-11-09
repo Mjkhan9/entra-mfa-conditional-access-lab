@@ -1,0 +1,21 @@
+// Log Analytics (SigninLogs + AuditLogs) - Admin role holder signed in with a password only
+// (MITRE ATT&CK T1078.004). The function app resolves admins live from Microsoft Graph role
+// assignments; in KQL the admin list comes from role-assignment events in AuditLogs (or paste UPNs).
+
+let admins =
+    AuditLogs
+    | where TimeGenerated > ago(90d)
+    | where OperationName in ("Add member to role", "Add eligible member to role")
+    | extend role = tostring(TargetResources[0].modifiedProperties[1].newValue)
+    | where role has_any ("Global Administrator", "Privileged Role Administrator", "Security Administrator",
+                          "Conditional Access Administrator", "User Administrator", "Exchange Administrator",
+                          "SharePoint Administrator", "Application Administrator", "Helpdesk Administrator")
+    | distinct upn = tolower(tostring(TargetResources[0].userPrincipalName));
+SigninLogs
+| where TimeGenerated > ago(7d)
+| where ResultType == "0"
+| where AuthenticationRequirement == "singleFactorAuthentication"
+| where tolower(UserPrincipalName) in (admins)
+| project TimeGenerated, UserPrincipalName, AppDisplayName, IPAddress, ClientAppUsed,
+          ConditionalAccessStatus, Location = tostring(LocationDetails.countryOrRegion)
+| order by TimeGenerated desc

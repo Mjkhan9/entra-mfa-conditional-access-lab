@@ -2,10 +2,259 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=05-entra-mfa-incident-simulator/incident-dashboard.html">
-    <title>Microsoft Entra MFA Incident Response Simulator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microsoft Entra MFA &amp; Conditional Access Lab — Identity Threat Detection</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; background: #f5f5f5; color: #242424; font-size: 14px; }
+        a { color: #0f6cbd; }
+        code { font-family: Consolas, 'Courier New', monospace; font-size: 11px; background: #f5f5f5; padding: 1px 4px; border-radius: 2px; }
+
+        .topbar { background: #0078d4; color: #fff; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
+        .topbar .brand { font-size: 15px; font-weight: 600; }
+        .topbar .brand span { font-weight: 400; opacity: 0.9; }
+        .topbar .env { font-size: 12px; background: rgba(255,255,255,0.18); padding: 3px 10px; border-radius: 10px; }
+
+        .page-header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 20px 24px 16px; }
+        .page-header h1 { font-size: 20px; font-weight: 600; }
+        .page-header p { color: #616161; margin-top: 4px; font-size: 13px; max-width: 980px; }
+        .pipeline-line { margin-top: 10px; font-size: 12px; color: #424242; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .pipeline-line .node { border: 1px solid #d1d1d1; background: #fafafa; border-radius: 3px; padding: 2px 8px; }
+        .pipeline-line .arrow { color: #8a8a8a; }
+
+        .container { padding: 20px 24px 32px; max-width: 1400px; margin: 0 auto; }
+        .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+        .stat { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 14px 16px; }
+        .stat-lbl { font-size: 12px; color: #616161; }
+        .stat-val { font-size: 28px; font-weight: 600; margin-top: 4px; line-height: 1.1; }
+        .stat-sub { font-size: 11px; color: #8a8a8a; margin-top: 4px; }
+
+        .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .toolbar .label { font-size: 13px; color: #424242; margin-right: 6px; }
+        .btn { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 4px; border: 1px solid #d1d1d1; background: #fff; color: #242424; cursor: pointer; }
+        .btn:hover { background: #f5f5f5; }
+        .btn.active { border-color: #0f6cbd; color: #0f6cbd; background: #ebf3fc; }
+        .btn.primary { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+        .btn.ghost { border-color: transparent; color: #0f6cbd; font-weight: 400; }
+
+        .grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
+        .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 18px 20px; }
+        .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .card h3 .meta { font-size: 12px; color: #616161; font-weight: 400; }
+
+        .incident-list { list-style: none; max-height: 520px; overflow-y: auto; }
+        .empty { color: #8a8a8a; font-size: 13px; padding: 24px 0; text-align: center; border: 1px dashed #e0e0e0; border-radius: 4px; }
+        .incident { padding: 12px 14px; margin-bottom: 8px; border: 1px solid #e0e0e0; border-left: 4px solid #8a8a8a; border-radius: 4px; cursor: pointer; }
+        .incident:hover { background: #fafafa; }
+        .incident.selected { outline: 2px solid #0f6cbd; }
+        .incident.sev-critical { border-left-color: #750b1c; }
+        .incident.sev-high { border-left-color: #c50f1f; }
+        .incident.sev-medium { border-left-color: #ca5010; }
+        .incident.sev-low { border-left-color: #8a8a8a; }
+        .incident.resolved { opacity: 0.55; }
+        .incident-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .incident-type { font-weight: 600; font-size: 13px; }
+        .incident-meta { font-size: 12px; color: #616161; margin-top: 4px; font-family: Consolas, monospace; }
+        .incident-detail { font-size: 12px; color: #424242; margin-top: 6px; line-height: 1.45; }
+        .pill { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 10px; border: 1px solid #d1d1d1; white-space: nowrap; color: #616161; background: #fafafa; }
+        .pill.CRITICAL { color: #fff; border-color: #750b1c; background: #750b1c; }
+        .pill.HIGH { color: #c50f1f; border-color: #f1bbbb; background: #fdf3f4; }
+        .pill.MEDIUM { color: #ca5010; border-color: #f4c7b0; background: #fdf6f3; }
+        .pill.mitre { color: #5c2e91; border-color: #d8c6ef; background: #f7f3fc; }
+        .pill.open { color: #0f6cbd; border-color: #b4d6fa; background: #ebf3fc; }
+        .pill.done { color: #0e700e; border-color: #9fd89f; background: #f1faf1; }
+
+        .playbook { list-style: none; counter-reset: s; }
+        .playbook li { counter-increment: s; padding: 8px 0 8px 28px; border-bottom: 1px solid #f0f0f0; position: relative; font-size: 13px; }
+        .playbook li::before { content: counter(s); position: absolute; left: 0; top: 9px; width: 18px; height: 18px; border-radius: 50%; background: #0f6cbd; color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; }
+        .playbook .why { font-size: 12px; color: #616161; margin-top: 2px; }
+        .playbook .cmd { margin-top: 4px; display: block; font-size: 11px; }
+        .note { font-size: 12px; color: #616161; margin-top: 10px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { text-align: left; font-weight: 600; color: #424242; border-bottom: 1px solid #e0e0e0; padding: 8px 6px; }
+        td { border-bottom: 1px solid #f0f0f0; padding: 8px 6px; vertical-align: top; color: #424242; line-height: 1.4; }
+        tr:last-child td { border-bottom: none; }
+        .score { font-size: 32px; font-weight: 600; }
+        .lower { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .footer { font-size: 11px; color: #8a8a8a; margin-top: 20px; }
+        @media (max-width: 960px) { .stats { grid-template-columns: repeat(2, 1fr); } .grid, .lower { grid-template-columns: 1fr; } }
+    </style>
 </head>
 <body>
-    <p>Redirecting to <a href="05-entra-mfa-incident-simulator/incident-dashboard.html">Incident Dashboard</a>...</p>
+    <div class="topbar">
+        <div class="brand">Microsoft Entra ID <span>· MFA &amp; Conditional Access Lab</span></div>
+        <div class="env">demo · synthetic sign-ins</div>
+    </div>
+
+    <div class="page-header">
+        <h1>Identity threat detection</h1>
+        <p>Eight detections over Entra sign-in logs, mapped to MITRE ATT&amp;CK, with an analyst playbook for each incident, plus a Conditional Access posture check. The buttons replay the simulator's attack scenarios through the same logic the Azure Function runs (<a href="https://github.com/Mjkhan9/entra-mfa-conditional-access-lab">source</a>).</p>
+        <div class="pipeline-line">
+            <span class="node">Entra sign-in logs</span><span class="arrow">→</span>
+            <span class="node">Log Analytics</span><span class="arrow">→</span>
+            <span class="node">detect (Azure Function)</span><span class="arrow">→</span>
+            <span class="node">Cosmos DB incidents</span><span class="arrow">→</span>
+            <span class="node">Metric alert</span><span class="arrow">→</span>
+            <span class="node">Analyst playbook</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats">
+            <div class="stat"><div class="stat-lbl">Incidents</div><div class="stat-val" id="sTotal">0</div><div class="stat-sub">all detections</div></div>
+            <div class="stat"><div class="stat-lbl">Critical</div><div class="stat-val" id="sCritical" style="color:#750b1c;">0</div><div class="stat-sub">break-glass, spray that worked</div></div>
+            <div class="stat"><div class="stat-lbl">High</div><div class="stat-val" id="sHigh" style="color:#c50f1f;">0</div><div class="stat-sub">credential attacks, MFA bypass</div></div>
+            <div class="stat"><div class="stat-lbl">MITRE techniques</div><div class="stat-val" id="sTech" style="color:#5c2e91;">0</div><div class="stat-sub">distinct, this session</div></div>
+            <div class="stat"><div class="stat-lbl">Resolved</div><div class="stat-val" id="sResolved" style="color:#0e700e;">0</div><div class="stat-sub">smart lockout responder</div></div>
+        </div>
+
+        <div class="toolbar">
+            <span class="label">Simulate</span>
+            <button class="btn" data-s="password_spray">Password spray</button>
+            <button class="btn" data-s="mfa_fatigue">MFA fatigue</button>
+            <button class="btn" data-s="smart_lockout">Smart lockout</button>
+            <button class="btn" data-s="legacy_auth_sign_in">Legacy auth</button>
+            <button class="btn" data-s="privileged_single_factor">Admin, password only</button>
+            <button class="btn" data-s="break_glass_sign_in">Break-glass used</button>
+            <button class="btn" data-s="policy_mismatch">CA mismatch</button>
+            <button class="btn" data-s="mfa_auth_failure">MFA failure</button>
+            <button class="btn primary" data-s="all">Run all 8</button>
+            <button class="btn ghost" onclick="location.reload()">Reset</button>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Incidents <span class="meta">select one for its playbook</span></h3>
+                <ul class="incident-list" id="incidents"><li class="empty" id="emptyState">No incidents yet. Simulate an attack.</li></ul>
+            </div>
+            <div class="card">
+                <h3>Playbook <span class="meta" id="pbMeta">functions/playbooks.py</span></h3>
+                <ol class="playbook" id="playbook"><li style="list-style:none;padding-left:0">Select an incident.</li></ol>
+                <p class="note">Every step is a recommendation. Nothing changes an identity automatically; only the smart lockout responder acts, and it updates the incident, not the account.</p>
+            </div>
+        </div>
+
+        <div class="lower">
+            <div class="card">
+                <h3>Conditional Access posture <span class="meta">sample tenant · GET /api/posture?demo=1</span></h3>
+                <div style="display:flex;gap:24px;align-items:center;margin-bottom:12px">
+                    <div><div class="score" id="caScore">35</div><div class="stat-sub">score / 100</div></div>
+                    <div class="stat-sub">2 enabled · 1 report-only · 1 off<br>admin roles covered 8 / 14</div>
+                </div>
+                <table><thead><tr><th>Check</th><th>Severity</th><th>Finding</th></tr></thead><tbody id="caFindings"></tbody></table>
+            </div>
+            <div class="card">
+                <h3>Detection logic <span class="meta">functions/detections.py</span></h3>
+                <table>
+                    <thead><tr><th>Detection</th><th>Signal</th><th>MITRE</th></tr></thead>
+                    <tbody>
+                        <tr><td>Password spray</td><td>One IP, 5+ accounts, <code>50126</code> in 30 min; CRITICAL if a sprayed account then signs in</td><td>T1110.003</td></tr>
+                        <tr><td>MFA fatigue</td><td>3+ denied / unanswered pushes for one user in 10 min (<code>500121</code>), or a fraud report</td><td>T1621</td></tr>
+                        <tr><td>Smart lockout</td><td><code>50053</code> after repeated <code>50126</code></td><td>T1110.001</td></tr>
+                        <tr><td>Legacy auth</td><td>Success over IMAP / POP / SMTP / EAS / Other clients</td><td>T1078.004</td></tr>
+                        <tr><td>Admin, password only</td><td><code>singleFactorAuthentication</code> success by one of the 14 admin roles</td><td>T1078.004</td></tr>
+                        <tr><td>Break-glass used</td><td>Any sign-in or attempt by an emergency access account</td><td>T1078.004</td></tr>
+                        <tr><td>CA mismatch</td><td>MFA succeeded, <code>53003</code> block</td><td>-</td></tr>
+                        <tr><td>MFA failure</td><td>Single <code>500121</code> not part of a fatigue burst</td><td>-</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p class="footer">Static demo page. Accounts use the contoso.com documentation domain and addresses come from the RFC 5737 documentation ranges. The deployed function writes the same incidents to Cosmos DB.</p>
+    </div>
+
+    <script>
+    const PB = {
+        revoke: ['Revoke sessions', 'Stolen tokens stop working', 'POST /users/{u}/revokeSignInSessions', 'Revoke-MgUserSignInSession -UserId {u}'],
+        reset: ['Force a password change', 'The password is known to the attacker', 'PATCH /users/{u} passwordProfile.forceChangePasswordNextSignIn', 'Update-MgUser -UserId {u} -PasswordProfile @{ForceChangePasswordNextSignIn=$true}'],
+        compromised: ['Confirm compromised (Entra ID P2)', 'Raises user risk so risk-based CA applies', 'POST /identityProtection/riskyUsers/confirmCompromised', 'Confirm-MgRiskyUserCompromised -UserIds {id}'],
+        methods: ['Review authentication methods', 'An attacker may have registered a method', 'GET /users/{u}/authentication/methods', 'Get-MgUserAuthenticationMethod -UserId {u}'],
+        triage: ['Scope the sign-ins', 'Who, where, which app, any success', "GET /auditLogs/signIns?$filter=userPrincipalName eq '{u}'", "Get-MgAuditLogSignIn -Filter \"userPrincipalName eq '{u}'\""],
+    };
+    const S = {
+        password_spray: { sev: 'CRITICAL', name: 'Password spray', mitre: 'T1110.003', prefix: 'SPRAY', user: '8 accounts', ip: '203.0.113.77',
+            detail: '8 bad-password sign-ins (50126) across 8 accounts in 6 min from 203.0.113.77; h.patel@contoso.com then signed in successfully from the same IP.',
+            pb: [PB.triage, ['Block the source range', 'Stops the spray while accounts are checked', 'POST /identity/conditionalAccess/namedLocations', 'New-MgIdentityConditionalAccessNamedLocation'], PB.reset, PB.revoke, PB.compromised], pbUser: 'h.patel@contoso.com' },
+        mfa_fatigue: { sev: 'HIGH', name: 'MFA fatigue', mitre: 'T1621', prefix: 'FATIGUE', user: 'j.miller@contoso.com', ip: '198.51.100.23',
+            detail: '5 push prompts denied or unanswered in 6 min. The password step succeeded every time: the password is known.',
+            pb: [PB.triage, PB.reset, PB.revoke, PB.methods, ['Confirm number matching', 'Defeats blind push approval', 'GET /policies/authenticationMethodsPolicy/authenticationMethodConfigurations/microsoftAuthenticator', 'Get-MgPolicyAuthenticationMethodPolicyAuthenticationMethodConfiguration']] },
+        smart_lockout: { sev: 'HIGH', name: 'Smart lockout', mitre: 'T1110.001', prefix: 'LOCKOUT', user: 'k.davis@contoso.com', ip: '198.51.100.15', resolve: true,
+            detail: '10 failed passwords (50126) in 50 s, then 50053 (IdsLocked). Responder resolves the incident after the 300 s cooldown; the account is not touched.',
+            pb: [PB.triage, ['Let the lockout expire', 'Smart lockout clears itself; the responder closes the incident', 'none: no account change', 'none'], PB.reset] },
+        legacy_auth_sign_in: { sev: 'HIGH', name: 'Legacy authentication sign-in', mitre: 'T1078.004', prefix: 'LEGACY', user: 'l.garcia@contoso.com', ip: '192.0.2.44',
+            detail: 'Successful sign-in over IMAP4. Legacy protocols cannot do MFA: this bypasses every MFA policy.',
+            pb: [PB.triage, ['Enforce Block legacy authentication', 'Closes the bypass for every account (posture check CA-04)', 'PATCH /identity/conditionalAccess/policies/{id} state=enabled', 'Update-MgIdentityConditionalAccessPolicy -State enabled'], PB.revoke] },
+        privileged_single_factor: { sev: 'HIGH', name: 'Admin signed in with password only', mitre: 'T1078.004', prefix: 'PRIV-1FA', user: 'it.admin@contoso.com', ip: '192.0.2.10',
+            detail: 'Admin role holder (looked up live in Microsoft Graph) signed in to the Azure Portal with singleFactorAuthentication.',
+            pb: [PB.triage, ['List the admin\'s role assignments', 'Standing vs PIM-eligible', "GET /roleManagement/directory/roleAssignments?$filter=principalId eq '{id}'", 'Get-MgRoleManagementDirectoryRoleAssignment'], ['Require phishing-resistant MFA for all 14 admin roles', 'Posture check CA-03 names the gaps', 'GET /identity/conditionalAccess/policies', 'Get-MgIdentityConditionalAccessPolicy'], PB.revoke] },
+        break_glass_sign_in: { sev: 'CRITICAL', name: 'Emergency access account used', mitre: 'T1078.004', prefix: 'BREAKGLASS', user: 'emergency.access@contoso.com', ip: '192.0.2.200',
+            detail: 'Break-glass account signed in to the Microsoft Entra admin center. Any attempt, successful or not, is investigated.',
+            pb: [['Confirm a declared emergency', 'These accounts are never used day to day', "GET /auditLogs/signIns?$filter=userPrincipalName eq '{u}'", 'Get-MgAuditLogSignIn'], ['If unplanned: rotate the credential, revoke sessions', 'The account bypasses Conditional Access', 'POST /users/{u}/revokeSignInSessions', 'Revoke-MgUserSignInSession'], ['Review changes made by the account', 'It holds Global Administrator', "GET /auditLogs/directoryAudits?$filter=initiatedBy/user/userPrincipalName eq '{u}'", 'Get-MgAuditLogDirectoryAudit']] },
+        policy_mismatch: { sev: 'MEDIUM', name: 'Conditional Access mismatch', mitre: '', prefix: 'POLICY', user: 'm.brown@contoso.com', ip: '192.0.2.61',
+            detail: 'MFA succeeded, then 53003: CA003 requires MFA AND a compliant device ("require all"). Design error, not an attack.',
+            pb: [['Run What If for user, app and device', 'Shows which grant control failed', 'GET /identity/conditionalAccess/policies/{id}', 'Get-MgIdentityConditionalAccessPolicy'], ['Fix the operator, test in report-only', 'Posture check CA-06 finds these up front', 'PATCH /identity/conditionalAccess/policies/{id}', 'Update-MgIdentityConditionalAccessPolicy']] },
+        mfa_auth_failure: { sev: 'LOW', name: 'Single MFA failure', mitre: '', prefix: 'MFA-AUTH', user: 'n.wilson@contoso.com', ip: '192.0.2.33',
+            detail: 'One 500121: invalid verification code. Consistent with an expired or mistyped code; not part of a fatigue burst.',
+            pb: [PB.triage, PB.methods] },
+    };
+    const CA = [
+        ['CA-02', 'HIGH', 'MFA is not required for all users'],
+        ['CA-03', 'HIGH', '6 of 14 admin roles have no MFA policy'],
+        ['CA-04', 'HIGH', 'Legacy authentication is not blocked (block policy is report-only)'],
+        ['CA-05', 'MEDIUM', 'CA003 does not exclude the emergency access account'],
+        ['CA-06', 'MEDIUM', 'CA003 requires MFA AND a managed device for all users'],
+        ['CA-07', 'LOW', 'CA002 is report-only'],
+        ['CA-08', 'LOW', 'No risk-based policy'],
+        ['CA-09', 'LOW', 'Device code flow is not blocked'],
+    ];
+    document.getElementById('caFindings').innerHTML = CA.map(f =>
+        `<tr><td><code>${f[0]}</code></td><td><span class="pill ${f[1]}">${f[1]}</span></td><td>${f[2]}</td></tr>`).join('');
+
+    const counts = { total: 0, CRITICAL: 0, HIGH: 0, resolved: 0 };
+    const techniques = new Set();
+    const hex = () => Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase().padStart(8, '0');
+
+    function showPlaybook(s) {
+        const u = s.pbUser || s.user;
+        document.getElementById('pbMeta').textContent = s.name;
+        document.getElementById('playbook').innerHTML = s.pb.map(p =>
+            `<li><b>${p[0]}</b><div class="why">${p[1]}</div><code class="cmd">${p[2].replaceAll('{u}', u)}</code><code class="cmd">${p[3].replaceAll('{u}', u)}</code></li>`).join('');
+    }
+
+    function addIncident(key) {
+        const s = S[key];
+        document.getElementById('emptyState')?.remove();
+        const li = document.createElement('li');
+        li.className = `incident sev-${s.sev.toLowerCase()}`;
+        li.innerHTML = `
+            <div class="incident-header"><span class="incident-type">${s.name}</span>
+              <span>${s.mitre ? `<span class="pill mitre">${s.mitre}</span> ` : ''}<span class="pill ${s.sev}">${s.sev}</span> <span class="pill open" data-status>OPEN</span></span></div>
+            <div class="incident-meta">${s.prefix}-${hex()} · ${s.user} · ${s.ip}</div>
+            <div class="incident-detail">${s.detail}</div>`;
+        li.onclick = () => { document.querySelectorAll('.incident').forEach(x => x.classList.remove('selected')); li.classList.add('selected'); showPlaybook(s); };
+        document.getElementById('incidents').prepend(li);
+        counts.total++; if (counts[s.sev] !== undefined) counts[s.sev]++;
+        if (s.mitre) techniques.add(s.mitre);
+        document.getElementById('sTotal').textContent = counts.total;
+        document.getElementById('sCritical').textContent = counts.CRITICAL;
+        document.getElementById('sHigh').textContent = counts.HIGH;
+        document.getElementById('sTech').textContent = techniques.size;
+        if (s.resolve) setTimeout(() => {
+            counts.resolved++; document.getElementById('sResolved').textContent = counts.resolved;
+            li.classList.add('resolved'); const st = li.querySelector('[data-status]');
+            st.textContent = 'RESOLVED'; st.className = 'pill done';
+        }, 5000);
+        li.click();
+    }
+
+    document.querySelectorAll('.toolbar .btn[data-s]').forEach(btn => btn.onclick = () => {
+        document.querySelectorAll('.toolbar .btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const keys = btn.dataset.s === 'all' ? Object.keys(S) : [btn.dataset.s];
+        keys.forEach((k, i) => setTimeout(() => addIncident(k), i * 500));
+    });
+    </script>
 </body>
 </html>
