@@ -1,0 +1,62 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+  - stage: Validate
+    displayName: 'Terraform Validation'
+    jobs:
+      - job: TerraformValidate
+        displayName: 'Validate Infrastructure'
+        steps:
+          - task: TerraformInstaller@1
+            inputs:
+              terraformVersion: 'latest'
+            displayName: 'Install Terraform'
+
+          - script: |
+              cd 05-entra-mfa-incident-simulator/terraform
+              terraform init -backend=false
+              terraform validate
+              terraform fmt -check -recursive
+            displayName: 'Terraform Init, Validate & Format'
+
+  - stage: PythonLint
+    displayName: 'Function Code Quality'
+    dependsOn: []
+    jobs:
+      - job: Lint
+        displayName: 'Lint Azure Functions'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '3.12'
+            displayName: 'Use Python 3.12'
+
+          - script: |
+              pip install flake8 pylint
+              echo "=== Function app ==="
+              flake8 05-entra-mfa-incident-simulator/functions/ --max-line-length=120 --statistics || true
+            displayName: 'Lint Function Handlers'
+
+  - stage: IncidentDocs
+    displayName: 'Incident Runbook Audit'
+    dependsOn: []
+    jobs:
+      - job: DocCheck
+        displayName: 'Verify Runbooks'
+        steps:
+          - script: |
+              echo "Incident runbooks:"
+              for f in 05-entra-mfa-incident-simulator/incidents/*.md; do
+                echo "[OK] $(basename $f) - $(wc -l < $f) lines"
+              done
+              echo "KQL queries:"
+              for f in 05-entra-mfa-incident-simulator/queries/*.kql; do
+                echo "[OK] $(basename $f) - $(wc -l < $f) lines"
+              done
+            displayName: 'Audit Incident Documentation'

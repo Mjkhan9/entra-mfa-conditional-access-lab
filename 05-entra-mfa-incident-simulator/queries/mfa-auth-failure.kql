@@ -1,0 +1,38 @@
+// Log Analytics (SigninLogs) - MFA Authentication Failure Detection
+// Detects failed sign-ins where the MFA step was not completed (consistent with an expired or mistyped code)
+
+// Basic detection query
+SigninLogs
+| where TimeGenerated > ago(24h)
+| where ResultType in ("500121", "50074", "50076")
+| where AuthenticationRequirement == "multiFactorAuthentication"
+| project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, ResultType, ResultDescription,
+          AdditionalDetails = tostring(Status.additionalDetails), AuthenticationDetails
+| order by TimeGenerated desc
+| take 50
+
+// Aggregated view by user (for pattern detection)
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where ResultType in ("500121", "50074", "50076")
+// | summarize failures = count() by UserPrincipalName, bin(TimeGenerated, 1h)
+// | where failures >= 2
+// | order by failures desc
+
+// Correlation query: find users who had a successful MFA sign-in before the failure
+// (indicates an expired code mid-session vs. a user who never completes MFA)
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where UserPrincipalName == "<specific-user>"
+// | project TimeGenerated, ResultType, ResultDescription, AuthenticationRequirement, MfaDetail, ConditionalAccessStatus
+// | order by TimeGenerated desc
+// | take 20
+
+// MFA step detail: which method failed and why (the "MFA denied; ..." text)
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where ResultType in ("500121", "50074", "50076")
+// | mv-expand step = AuthenticationDetails
+// | where step.authenticationStepRequirement == "Multi-factor authentication"
+// | summarize failures = count() by Method = tostring(step.authenticationMethod), Detail = tostring(step.authenticationStepResultDetail)
+// | order by failures desc

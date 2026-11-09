@@ -1,0 +1,42 @@
+// Log Analytics (SigninLogs) - Smart Lockout Detection
+// Detects bursts of failed sign-ins that trigger smart lockout (ResultType 50053 - IdsLocked)
+
+// Core detection: 5+ failures in 5-minute window from the same user and IP
+SigninLogs
+| where TimeGenerated > ago(24h)
+| where ResultType in ("50126", "500121", "50053")
+| summarize failure_count = count(),
+            lockouts = countif(ResultType == "50053"),
+            first_attempt = min(TimeGenerated),
+            last_attempt = max(TimeGenerated)
+          by UserPrincipalName, IPAddress, bin(TimeGenerated, 5m)
+| where failure_count >= 5
+| order by failure_count desc
+
+// Detailed timeline for specific user
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where UserPrincipalName == "<specific-user>"
+// | where ResultType != "0"
+// | project TimeGenerated, IPAddress, UserAgent, AppDisplayName, ResultType, ResultDescription
+// | order by TimeGenerated asc
+// | take 50
+
+// Geographic analysis (for impossible travel correlation)
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where ResultType != "0"
+// | summarize attempts = count(),
+//             first_attempt = min(TimeGenerated),
+//             last_attempt = max(TimeGenerated)
+//           by UserPrincipalName, IPAddress,
+//              Country = tostring(LocationDetails.countryOrRegion), City = tostring(LocationDetails.city)
+// | where attempts >= 3
+// | order by attempts desc
+
+// Lockout events only (the signal the detector maps to a smart_lockout incident)
+// SigninLogs
+// | where TimeGenerated > ago(24h)
+// | where ResultType == "50053"
+// | project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, ResultDescription, RiskLevelDuringSignIn
+// | order by TimeGenerated desc

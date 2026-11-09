@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MFA Incident Response Dashboard — Microsoft Entra ID</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', 'Segoe UI Web (West European)', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif; background: #f5f5f5; color: #242424; font-size: 14px; }
+        a { color: #0f6cbd; }
+
+        .topbar { background: #0078d4; color: #fff; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
+        .topbar .brand { font-size: 15px; font-weight: 600; letter-spacing: 0.1px; }
+        .topbar .brand span { font-weight: 400; opacity: 0.9; }
+        .topbar .env { font-size: 12px; background: rgba(255,255,255,0.18); padding: 3px 10px; border-radius: 10px; }
+
+        .page-header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 20px 24px 16px; }
+        .page-header h1 { font-size: 20px; font-weight: 600; }
+        .page-header p { color: #616161; margin-top: 4px; font-size: 13px; }
+        .pipeline-line { margin-top: 10px; font-size: 12px; color: #424242; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .pipeline-line .node { border: 1px solid #d1d1d1; background: #fafafa; border-radius: 3px; padding: 2px 8px; }
+        .pipeline-line .arrow { color: #8a8a8a; }
+
+        .container { padding: 20px 24px 32px; max-width: 1400px; margin: 0 auto; }
+
+        .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+        .stat { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 14px 16px; }
+        .stat-lbl { font-size: 12px; color: #616161; }
+        .stat-val { font-size: 28px; font-weight: 600; margin-top: 4px; line-height: 1.1; }
+        .stat-sub { font-size: 11px; color: #8a8a8a; margin-top: 4px; }
+
+        .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .toolbar .label { font-size: 13px; color: #424242; margin-right: 6px; }
+        .btn { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 4px; border: 1px solid #d1d1d1; background: #fff; color: #242424; cursor: pointer; }
+        .btn:hover { background: #f5f5f5; border-color: #c7c7c7; }
+        .btn.active { border-color: #0f6cbd; color: #0f6cbd; background: #ebf3fc; }
+        .btn.primary { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+        .btn.primary:hover { background: #115ea3; }
+        .btn.ghost { border-color: transparent; color: #0f6cbd; font-weight: 400; }
+
+        .grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
+        .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 18px 20px; }
+        .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: baseline; }
+        .card h3 .meta { font-size: 12px; color: #616161; font-weight: 400; }
+
+        .legend { display: flex; gap: 14px; font-size: 12px; color: #616161; margin-bottom: 8px; }
+        .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+        .chart-area { height: 220px; display: flex; align-items: flex-end; gap: 3px; padding-top: 8px; border-bottom: 1px solid #e0e0e0; }
+        .bar { flex: 1; min-width: 4px; border-radius: 2px 2px 0 0; background: #c7e0f4; position: relative; cursor: default; transition: height 0.4s ease, background 0.4s ease; }
+        .bar:hover { filter: brightness(0.92); }
+        .bar:hover::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #242424; color: #fff; padding: 4px 8px; border-radius: 3px; font-size: 11px; white-space: nowrap; margin-bottom: 4px; z-index: 2; }
+        .timeline { display: flex; justify-content: space-between; font-size: 11px; color: #8a8a8a; margin-top: 6px; }
+
+        .incident-list { list-style: none; max-height: 420px; overflow-y: auto; }
+        .empty { color: #8a8a8a; font-size: 13px; padding: 24px 0; text-align: center; border: 1px dashed #e0e0e0; border-radius: 4px; }
+        .incident { padding: 12px 14px; margin-bottom: 8px; border: 1px solid #e0e0e0; border-left: 4px solid #8a8a8a; border-radius: 4px; background: #fff; transition: opacity 0.4s; }
+        .incident.sev-high { border-left-color: #c50f1f; }
+        .incident.sev-medium { border-left-color: #ca5010; }
+        .incident.resolved { opacity: 0.55; }
+        .incident-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .incident-type { font-weight: 600; font-size: 13px; }
+        .incident-id { font-family: Consolas, 'Courier New', monospace; font-size: 11px; color: #616161; }
+        .incident-meta { font-size: 12px; color: #616161; margin-top: 4px; }
+        .incident-detail { font-size: 12px; color: #424242; margin-top: 6px; line-height: 1.45; }
+        .incident-detail code { font-family: Consolas, 'Courier New', monospace; font-size: 11px; background: #f5f5f5; padding: 1px 4px; border-radius: 2px; }
+        .incident-response { font-size: 12px; margin-top: 6px; color: #0e700e; }
+        .pill { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 10px; border: 1px solid; white-space: nowrap; }
+        .sev-high .pill { color: #c50f1f; border-color: #f1bbbb; background: #fdf3f4; }
+        .sev-medium .pill { color: #ca5010; border-color: #f4c7b0; background: #fdf6f3; }
+        .pill.status { color: #616161; border-color: #d1d1d1; background: #fafafa; }
+        .pill.status.open { color: #0f6cbd; border-color: #b4d6fa; background: #ebf3fc; }
+        .pill.status.done { color: #0e700e; border-color: #9fd89f; background: #f1faf1; }
+
+        .lower { display: grid; grid-template-columns: 2fr 3fr; gap: 16px; }
+        .steps { list-style: none; }
+        .step { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; color: #8a8a8a; }
+        .step:last-child { border-bottom: none; }
+        .step .dot { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #d1d1d1; flex: none; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
+        .step.done { color: #242424; }
+        .step.done .dot { background: #0f6cbd; border-color: #0f6cbd; }
+        .step.skip .dot { background: #fff; border-style: dashed; }
+        .step .what { font-size: 12px; color: #616161; display: block; margin-top: 2px; }
+        .step.done .what { color: #424242; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { text-align: left; font-weight: 600; color: #424242; border-bottom: 1px solid #e0e0e0; padding: 8px 6px; }
+        td { border-bottom: 1px solid #f0f0f0; padding: 8px 6px; vertical-align: top; color: #424242; line-height: 1.4; }
+        td code { font-family: Consolas, 'Courier New', monospace; font-size: 11px; background: #f5f5f5; padding: 1px 4px; border-radius: 2px; }
+        tr:last-child td { border-bottom: none; }
+
+        .footer { font-size: 11px; color: #8a8a8a; margin-top: 20px; }
+
+        @media (max-width: 960px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .grid, .lower { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="brand">Microsoft Entra ID <span>· MFA incident response simulator</span></div>
+        <div class="env">dev · simulated data</div>
+    </div>
+
+    <div class="page-header">
+        <h1>MFA Incident Response Dashboard</h1>
+        <p>Detect, store, alert and respond to MFA failures. Live records come from Entra sign-in logs; the buttons below replay the three simulator scenarios.</p>
+        <div class="pipeline-line">
+            <span class="node">Entra sign-in logs</span><span class="arrow">→</span>
+            <span class="node">Event Hub</span><span class="arrow">→</span>
+            <span class="node">Azure Function</span><span class="arrow">→</span>
+            <span class="node">Cosmos DB</span><span class="arrow">→</span>
+            <span class="node">Azure Monitor alert</span><span class="arrow">→</span>
+            <span class="node">Action group</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats">
+            <div class="stat"><div class="stat-lbl">Total incidents (24h)</div><div class="stat-val" id="totalIncidents">0</div><div class="stat-sub">all scenarios</div></div>
+            <div class="stat"><div class="stat-lbl">MFA failures</div><div class="stat-val" id="mfaFailures" style="color:#ca5010;">0</div><div class="stat-sub">ResultType 500121</div></div>
+            <div class="stat"><div class="stat-lbl">Smart lockouts</div><div class="stat-val" id="smartLockouts" style="color:#c50f1f;">0</div><div class="stat-sub">ResultType 50053</div></div>
+            <div class="stat"><div class="stat-lbl">Conditional Access blocked</div><div class="stat-val" id="policyDenied" style="color:#0f6cbd;">0</div><div class="stat-sub">ResultType 53003</div></div>
+            <div class="stat"><div class="stat-lbl">Resolved</div><div class="stat-val" id="resolved" style="color:#0e700e;">0</div><div class="stat-sub">by responder or user</div></div>
+        </div>
+
+        <div class="toolbar">
+            <span class="label">Simulate scenario</span>
+            <button class="btn" onclick="runScenario('mfa-failure', this)">MFA auth failure</button>
+            <button class="btn" onclick="runScenario('smart-lockout', this)">Smart lockout</button>
+            <button class="btn" onclick="runScenario('policy-mismatch', this)">Policy mismatch</button>
+            <button class="btn primary" onclick="runScenario('all', this)">Run all 3</button>
+            <button class="btn ghost" onclick="location.reload()">Reset</button>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Sign-in events (24h) <span class="meta">interactive sign-ins, 30-minute bins</span></h3>
+                <div class="legend"><span><i style="background:#c7e0f4;"></i>Successful</span><span><i style="background:#c50f1f;"></i>Failed (incident)</span></div>
+                <div class="chart-area" id="chart"></div>
+                <div class="timeline"><span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span><span>Now</span></div>
+            </div>
+            <div class="card">
+                <h3>Active incidents <span class="meta">Cosmos DB · incidents container</span></h3>
+                <ul class="incident-list" id="incidents"><li class="empty" id="emptyState">No incidents yet. Run a scenario to see the pipeline work.</li></ul>
+            </div>
+        </div>
+
+        <div class="lower">
+            <div class="card">
+                <h3>Pipeline trace <span class="meta" id="traceMeta">last run</span></h3>
+                <ol class="steps" id="trace">
+                    <li class="step" data-step="1"><span class="dot">1</span><div>Record received<span class="what">Sign-in log record (detector) or test payload (simulator)</span></div></li>
+                    <li class="step" data-step="2"><span class="dot">2</span><div>Pattern matched<span class="what" id="traceMatch">—</span></div></li>
+                    <li class="step" data-step="3"><span class="dot">3</span><div>Incident stored<span class="what">Cosmos DB, partition key = scenario, TTL 7 days</span></div></li>
+                    <li class="step" data-step="4"><span class="dot">4</span><div>Alert raised<span class="what">Application Insights event → alert rule → action group email</span></div></li>
+                    <li class="step" data-step="5"><span class="dot">5</span><div>Response<span class="what" id="traceResponse">—</span></div></li>
+                </ol>
+            </div>
+            <div class="card">
+                <h3>Detection logic <span class="meta">functions/simulator.py</span></h3>
+                <table>
+                    <thead><tr><th>Signal (sign-in log)</th><th>Scenario</th><th>Severity</th><th>Response</th></tr></thead>
+                    <tbody>
+                        <tr><td><code>ResultType</code> 500121 / 50074 / 50076, <code>AuthenticationRequirement</code> = multiFactorAuthentication</td><td>MFA auth failure</td><td>Medium</td><td>User re-authenticates. No automation.</td></tr>
+                        <tr><td>5+ failures in 60 s, same UPN and IP, then <code>ResultType</code> 50053 (IdsLocked)</td><td>Smart lockout</td><td>High</td><td>Assisted: responder marks RESOLVED after the 300 s cooldown and notifies. Never touches the account.</td></tr>
+                        <tr><td><code>ResultType</code> 53003 / 53000 / 53001 with the MFA step succeeded and <code>ConditionalAccessStatus</code> = failure</td><td>Policy mismatch</td><td>Medium</td><td>Admin reviews the grant controls with What If. Runbook.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <p class="footer">Static demo page. Incident data on this page is synthetic; the deployed pipeline writes the same records to Cosmos DB and Application Insights.</p>
+    </div>
+
+    <script>
+    // Generate chart bars (48 x 30-minute bins)
+    const chart = document.getElementById('chart');
+    for (let i = 0; i < 48; i++) {
+        const success = 20 + Math.random() * 60;
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = success + '%';
+        bar.dataset.tooltip = `${Math.floor(success)} sign-ins`;
+        chart.appendChild(bar);
+    }
+
+    let incidentCount = 0;
+    const scenarios = {
+        'mfa-failure': {
+            incidents: [
+                { sev: 'medium', type: 'MFA auth failure', prefix: 'MFA-AUTH', user: 'admin@company.com', ip: '203.0.113.42',
+                  detail: 'Sign-in failed — <code>ResultType 500121</code> (Authentication failed during strong authentication request). Authentication details: OATH verification code → <code>MFA denied; invalid mobile app verification code</code>. Consistent with an expired or mistyped code.',
+                  action: 'User must sign in again and complete MFA with a fresh code',
+                  match: 'ResultType 500121 + AuthenticationRequirement = multiFactorAuthentication → mfa_auth_failure (MEDIUM)',
+                  response: 'No automation. Runbook 01: user self-service, re-register only if persistent.',
+                  autoResolve: false }
+            ],
+            chartSpike: { start: 38, count: 5, color: '#ca5010' }
+        },
+        'smart-lockout': {
+            incidents: [
+                { sev: 'high', type: 'Smart lockout', prefix: 'LOCKOUT', user: 'jsmith@company.com', ip: '198.51.100.15',
+                  detail: '12 failed sign-ins in a 60-second window from the same <code>UserPrincipalName</code> and <code>IPAddress</code>, then <code>ResultType 50053</code> (IdsLocked). Smart lockout engaged.',
+                  action: 'Cosmos DB status updated → alert sent → responder resolves after the 300 s cooldown (no account changes)',
+                  match: 'Burst of failures then ResultType 50053 → smart_lockout (HIGH), cooldown 300 s',
+                  response: 'Assisted: timer-triggered responder sets RESOLVED, records resolution time, notifies. Account untouched.',
+                  autoResolve: true }
+            ],
+            chartSpike: { start: 42, count: 4, color: '#c50f1f' }
+        },
+        'policy-mismatch': {
+            incidents: [
+                { sev: 'medium', type: 'Policy mismatch', prefix: 'POLICY', user: 'dev-user@company.com', ip: '10.0.1.50',
+                  detail: 'MFA satisfied, but <code>ResultType 53003</code> (BlockedByConditionalAccess). Policy <em>Require compliant device for Azure management</em> enforces Mfa AND RequireCompliantDevice; the device is not compliant.',
+                  action: 'Admin review required — check the policy grant controls (AND vs OR) with the What If tool',
+                  match: 'ResultType 53003 + MFA step succeeded + ConditionalAccessStatus = failure → policy_mismatch (MEDIUM)',
+                  response: 'Admin action. Runbook 03: What If, fix the operator, Report-only, re-verify.',
+                  autoResolve: false }
+            ],
+            chartSpike: { start: 45, count: 3, color: '#0f6cbd' }
+        }
+    };
+
+    function incidentId(prefix) {
+        const hex = Math.floor(Math.random() * 0xffffffff).toString(16).toUpperCase().padStart(8, '0');
+        return `${prefix}-${hex}`;
+    }
+
+    function bump(id) {
+        const el = document.getElementById(id);
+        el.textContent = parseInt(el.textContent, 10) + 1;
+    }
+
+    function resetTrace() {
+        document.querySelectorAll('#trace .step').forEach(s => s.classList.remove('done', 'skip'));
+        document.getElementById('traceMatch').textContent = '—';
+        document.getElementById('traceResponse').textContent = '—';
+    }
+
+    function playTrace(inc) {
+        resetTrace();
+        document.getElementById('traceMeta').textContent = `${inc.type} · ${new Date().toLocaleTimeString()}`;
+        document.getElementById('traceMatch').textContent = inc.match;
+        document.getElementById('traceResponse').textContent = inc.response;
+        const steps = document.querySelectorAll('#trace .step');
+        steps.forEach((s, i) => {
+            setTimeout(() => {
+                s.classList.add('done');
+                if (i === 4 && !inc.autoResolve) s.classList.add('skip');
+            }, 250 * (i + 1));
+        });
+    }
+
+    function runScenario(type, btn) {
+        document.querySelectorAll('.toolbar .btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+
+        const types = type === 'all' ? ['mfa-failure', 'smart-lockout', 'policy-mismatch'] : [type];
+        let delay = 0;
+
+        types.forEach(t => {
+            const s = scenarios[t];
+            s.incidents.forEach(inc => {
+                setTimeout(() => {
+                    incidentCount++;
+                    const empty = document.getElementById('emptyState');
+                    if (empty) empty.remove();
+
+                    const id = incidentId(inc.prefix);
+                    const li = document.createElement('li');
+                    li.className = `incident sev-${inc.sev}`;
+                    li.innerHTML = `
+                        <div class="incident-header">
+                            <span class="incident-type">${inc.type}</span>
+                            <span>
+                                <span class="pill">${inc.sev.toUpperCase()}</span>
+                                <span class="pill status open" data-status>OPEN</span>
+                            </span>
+                        </div>
+                        <div class="incident-meta"><span class="incident-id">${id}</span> · ${inc.user} · ${inc.ip} · ${new Date().toLocaleTimeString()}</div>
+                        <div class="incident-detail">${inc.detail}</div>
+                        <div class="incident-response">Response: ${inc.action}</div>
+                    `;
+                    document.getElementById('incidents').prepend(li);
+
+                    // Update stats
+                    document.getElementById('totalIncidents').textContent = incidentCount;
+                    if (t === 'mfa-failure') bump('mfaFailures');
+                    if (t === 'smart-lockout') bump('smartLockouts');
+                    if (t === 'policy-mismatch') bump('policyDenied');
+
+                    // Chart spike
+                    for (let i = s.chartSpike.start; i < s.chartSpike.start + s.chartSpike.count && i < chart.children.length; i++) {
+                        chart.children[i].style.height = (70 + Math.random() * 30) + '%';
+                        chart.children[i].style.background = s.chartSpike.color;
+                        chart.children[i].dataset.tooltip = 'failed sign-ins';
+                    }
+
+                    // Pipeline trace
+                    playTrace(inc);
+
+                    // Assisted remediation: the responder resolves lockouts after the cooldown (shortened here)
+                    if (inc.autoResolve) {
+                        setTimeout(() => {
+                            bump('resolved');
+                            li.classList.add('resolved');
+                            const st = li.querySelector('[data-status]');
+                            st.textContent = 'RESOLVED';
+                            st.classList.remove('open');
+                            st.classList.add('done');
+                        }, 5000);
+                    }
+
+                }, delay);
+                delay += 1200;
+            });
+        });
+    }
+    </script>
+</body>
+</html>
