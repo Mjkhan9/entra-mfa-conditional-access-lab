@@ -3,7 +3,8 @@
 # Cost design: log search alert rules bill per rule per month (USD 1.50 each at a 5-minute frequency),
 # while metric alerts are free for the first 10 monitored time series per subscription. Every rule
 # here watches a platform metric that already exists for free:
-#   - Cosmos DB TotalRequests on the incidents container: Create = new incident, Patch = resolution
+#   - Cosmos DB TotalRequests, OperationType Create: incidents container = new incident,
+#     resolutions container = resolution (patch operations are not reported in this metric)
 #   - Application Insights requests/failed: function errors
 # Monitored time series: 2 + 1 + 2 + 1 = 6 (limit for free: 10). Adding a dimension value adds one.
 # Per-incident detail (scenario, severity, user) stays in Cosmos DB and the workbook.
@@ -49,7 +50,7 @@ resource "azurerm_monitor_metric_alert" "incident_created" {
   tags = local.tags
 }
 
-# Alert: incident resolved by the responder (patch of status / resolution time)
+# Alert: incident resolved by the responder (one record created in the resolutions container)
 resource "azurerm_monitor_metric_alert" "incident_resolved" {
   name                = "alert-${local.name_prefix}-incident-resolved"
   resource_group_name = azurerm_resource_group.main.name
@@ -70,12 +71,12 @@ resource "azurerm_monitor_metric_alert" "incident_resolved" {
     dimension {
       name     = "CollectionName"
       operator = "Include"
-      values   = [azurerm_cosmosdb_sql_container.incidents.name]
+      values   = [azurerm_cosmosdb_sql_container.resolutions.name]
     }
     dimension {
       name     = "OperationType"
       operator = "Include"
-      values   = ["Patch"]
+      values   = ["Create"]
     }
   }
 

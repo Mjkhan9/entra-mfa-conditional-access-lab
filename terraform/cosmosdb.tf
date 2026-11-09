@@ -53,6 +53,18 @@ resource "azurerm_cosmosdb_sql_container" "incidents" {
   default_ttl = -1
 }
 
+# One record per resolution (audit trail). Cosmos DB request metrics report document creates but not
+# partial updates (patch), so the incident-resolved metric alert watches creates in this container.
+resource "azurerm_cosmosdb_sql_container" "resolutions" {
+  name                  = "resolutions"
+  resource_group_name   = azurerm_resource_group.main.name
+  account_name          = azurerm_cosmosdb_account.main.name
+  database_name         = azurerm_cosmosdb_sql_database.incidents.name
+  partition_key_paths   = ["/scenario"]
+  partition_key_version = 2
+  default_ttl           = -1
+}
+
 # Let the person running Terraform browse incidents in Data Explorer (keys are disabled)
 resource "azurerm_cosmosdb_sql_role_assignment" "deployer" {
   name                = uuidv5("dns", "${local.name_prefix}-deployer-cosmos")

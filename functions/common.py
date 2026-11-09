@@ -22,6 +22,7 @@ from azure.identity import DefaultAzureCredential
 COSMOS_ENDPOINT = os.environ.get('COSMOS_ENDPOINT', '')
 COSMOS_DATABASE = os.environ.get('COSMOS_DATABASE', 'incidents-db')
 COSMOS_CONTAINER = os.environ.get('COSMOS_CONTAINER', 'incidents')
+COSMOS_RESOLUTIONS_CONTAINER = os.environ.get('COSMOS_RESOLUTIONS_CONTAINER', 'resolutions')
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
 INCIDENT_TTL_SECONDS = int(os.environ.get('INCIDENT_TTL_DAYS', '7')) * 24 * 60 * 60
 
@@ -33,6 +34,13 @@ def incidents_container():
     """Cosmos DB container client, authenticated with the managed identity."""
     client = CosmosClient(COSMOS_ENDPOINT, credential=DefaultAzureCredential())
     return client.get_database_client(COSMOS_DATABASE).get_container_client(COSMOS_CONTAINER)
+
+
+@lru_cache(maxsize=1)
+def resolutions_container():
+    """Resolution audit records (one per resolved incident; the resolved alert watches creates here)."""
+    client = CosmosClient(COSMOS_ENDPOINT, credential=DefaultAzureCredential())
+    return client.get_database_client(COSMOS_DATABASE).get_container_client(COSMOS_RESOLUTIONS_CONTAINER)
 
 
 def store_incident(incident: Dict[str, Any], create_only: bool = False) -> bool:

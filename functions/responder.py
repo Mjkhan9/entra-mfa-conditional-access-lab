@@ -16,7 +16,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from common import ENVIRONMENT, emit_event, emit_metric, incidents_container
+from common import (ENVIRONMENT, INCIDENT_TTL_SECONDS, emit_event, emit_metric, incidents_container,
+                    resolutions_container)
 
 
 def handle() -> Dict[str, Any]:
@@ -120,7 +121,10 @@ def process_remediation(incident: Dict[str, Any]) -> None:
         resolution_notes='Cooldown period completed. Smart lockout cleared. User may attempt re-authentication.'
     )
 
-    # Send resolution notification
+    # Resolution audit record: its creation fires the incident-resolved metric alert (email)
+    record_resolution(incident, resolution_time_seconds)
+
+    # Resolution event for the workbook
     send_resolution_notification(incident, resolution_time_seconds)
 
     # Emit resolution metrics
@@ -154,6 +158,23 @@ def update_incident_status(
     except Exception as e:
         print(f"[ERROR] Failed to update incident: {str(e)}")
         raise
+
+
+def record_resolution(incident: Dict[str, Any], resolution_time: int) -> None:
+    """Write one resolution record (audit trail + alert signal). Failure is logged, not raised."""
+    try:
+        resolutions_container().create_item({
+            'id': f"{incident['incident_id']}-resolved",
+            'incident_id': incident['incident_id'],
+            'scenario': incident['scenario'],
+            'user': incident.get('user', ''),
+            'resolved_at': datetime.now(timezone.utc).isoformat(),
+            'resolution_time_seconds': resolution_time,
+            'remediation_type': 'assisted_auto',
+            'ttl': INCIDENT_TTL_SECONDS,
+        })
+    except Exception as e:
+        print(f"[ERROR] Failed to record resolution: {str(e)}")
 
 
 def send_resolution_notification(incident: Dict[str, Any], resolution_time: int) -> None:

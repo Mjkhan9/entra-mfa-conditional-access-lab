@@ -121,7 +121,7 @@ The responder handles this scenario. It runs at the start of every `simulate` / 
 
 1. Detects incident is past cooldown period (5 minutes default)
 2. Updates incident status in Cosmos DB to `RESOLVED`
-3. Raises a resolution notification (the Cosmos DB patch fires the `incident-resolved` metric alert -> action group email)
+3. Writes a resolution record to the `resolutions` container; its creation fires the `incident-resolved` metric alert -> action group email
 4. Logs resolution time for metrics
 
 **What it does NOT do:**

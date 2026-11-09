@@ -56,11 +56,12 @@ resource "azurerm_function_app_flex_consumption" "main" {
   }
 
   app_settings = {
-    COSMOS_ENDPOINT   = azurerm_cosmosdb_account.main.endpoint
-    COSMOS_DATABASE   = azurerm_cosmosdb_sql_database.incidents.name
-    COSMOS_CONTAINER  = azurerm_cosmosdb_sql_container.incidents.name
-    INCIDENT_TTL_DAYS = tostring(var.incident_retention_days)
-    ENVIRONMENT       = var.environment
+    COSMOS_ENDPOINT              = azurerm_cosmosdb_account.main.endpoint
+    COSMOS_DATABASE              = azurerm_cosmosdb_sql_database.incidents.name
+    COSMOS_CONTAINER             = azurerm_cosmosdb_sql_container.incidents.name
+    COSMOS_RESOLUTIONS_CONTAINER = azurerm_cosmosdb_sql_container.resolutions.name
+    INCIDENT_TTL_DAYS            = tostring(var.incident_retention_days)
+    ENVIRONMENT                  = var.environment
 
     # Detector mode reads SigninLogs from this workspace (managed identity, no key)
     LOG_ANALYTICS_WORKSPACE_ID = azurerm_log_analytics_workspace.main.workspace_id
